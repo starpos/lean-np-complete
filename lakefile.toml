@@ -1,0 +1,18 @@
+name = "np-complete"
+version = "0.3.0"
+defaultTargets = ["NPComplete"]
+
+[[lean_lib]]
+name = "NPComplete"
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "v4.35.0"
+
+# Tests that import NPComplete as a downstream package would (module and non-module importers).
+# `NPCompleteTest.ShouldFail` is left out of the globs on purpose: its files must be rejected, and
+# `scripts/check_importer_tests.sh` checks that.
+[[lean_lib]]
+name = "NPCompleteTest"
+globs = ["NPCompleteTest.Pilot.+", "NPCompleteTest.Final.+", "NPCompleteTest.NonModule.+", "NPCompleteTest.Sentinel.+"]
