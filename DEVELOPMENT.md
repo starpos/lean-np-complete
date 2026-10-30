@@ -96,7 +96,9 @@ The statement of a tagged declaration may only mention `NPComplete.*` declaratio
 layer: everything it refers to must be `stable_api` if it is stable, and `stable_api` or
 `construction_api` if it is a construction. `NPComplete/Test/ApiLayers.lean` checks this. If it
 reports a violation, decide whether the dependency can reasonably be put in the same layer; do not
-tag an internal type just to silence the check.
+tag an internal type just to silence the check. The instance checker requires the library's global
+`Repr`, `DecidableEq`, and `Inhabited` instances for tagged inductive types to have a layer tag.
+`NPCompleteTest/ShouldFail/UntaggedInstance.lean` checks that an untagged instance is rejected.
 
 Changing the type of a stable declaration makes `NPComplete/Test/StableApi.lean` fail (it pins the
 types with `#guard_msgs`). That is intended: it is a breaking change, so update the expected output

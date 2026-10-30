@@ -9,7 +9,7 @@ and TM2.
 
 ### 1.1 Requirements and building
 
-The Lake package name is `np-complete` (version `0.3.0`). It is built with Lean `v4.35.0` and
+The Lake package name is `np-complete` (version `0.4.0`). It is built with Lean `v4.35.0` and
 depends only on Mathlib `v4.35.0` (`lakefile.toml`).
 
 Install [elan](https://github.com/leanprover/elan), Lean's toolchain manager; the `lean-toolchain`
@@ -35,20 +35,20 @@ checks.
 ### 1.2 Using the library from another package
 
 Add it to the `lakefile.toml` of your package. The Lake package name is `np-complete`. Pin `rev` to
-a release tag (here `v0.3.0`) for reproducible builds:
+a release tag (here `v0.4.0`) for reproducible builds:
 
 ```toml
 [[require]]
 name = "np-complete"
 git = "https://github.com/starpos/lean-np-complete.git"
-rev = "v0.3.0"
+rev = "v0.4.0"
 ```
 
 The equivalent `lakefile.lean` entry is:
 
 ```lean
 require «np-complete» from git
-  "https://github.com/starpos/lean-np-complete.git" @ "v0.3.0"
+  "https://github.com/starpos/lean-np-complete.git" @ "v0.4.0"
 ```
 
 Then run `lake update np-complete` and `import NPComplete` in your modules. Running `lake exe cache
@@ -78,7 +78,7 @@ The main Cook-Levin declarations are in `NPComplete.CookLevin`.
 | `sat_NPHard`, `sat_NPComplete` | SAT over CNF is NP-hard / NP-complete |
 | `threeSAT_NPHard`, `threeSAT_NPComplete` | 3SAT over valid 3CNF is NP-hard / NP-complete |
 | `sat_inNP`, `threeSAT_inNP` | SAT / 3SAT are in NP |
-| `p_ne_np_implies_h3sat` | Under `PneNP`, 3SAT over valid 3CNF has no polynomial-time TM2 promise decider |
+| `p_ne_np_implies_h3sat` | Under `PneNP`, 3SAT has no polynomial-time TM2 promise decider |
 | `sat_InP_implies_PeqNP` | If SAT is `InP`, then `PeqNP` |
 | `threeSAT_InP_implies_PeqNP` | If 3SAT is `InP`, then `PeqNP` |
 
@@ -203,6 +203,8 @@ compatibility guarantee.
   `NPHard.of_threeSAT` and `NPComplete.of_threeSAT` listed above are stable by explicit decision,
   although they are specific to SAT/3SAT. For the other stable declarations, the criteria are: no
   dependence on a specific problem or memory layout, and no internal-layer types in the statement.
+  This includes `BoundedWhile.loopEval_one` and `loopEval_add`, as well as the tagged `Repr`,
+  `DecidableEq`, and `Inhabited` instances on stable types.
 - **Construction API (`@[construction_api]`)**: usable, but may change. This layer contains
   `BoundedWhileDecider` (`.ofBounds` `.result` `.TMRealizable`),
   `tmRealizable_of_boundedWhileDecider`, `bitInputStore`, `CompiledOperandBound` and
@@ -235,14 +237,36 @@ promise is trivial).
 Write a BoundedWhile program and prove its cost and operand bounds; no RAM-to-TM wiring is
 needed.
 
-| Entry point | Conclusion |
-| --- | --- |
-| `InP.of_boundedWhileDecider` | `InP ea L` from `BoundedWhileDecider ea (fun _ => True) L` |
-| `InNP.of_bounded_while_verifier` | `InNP enc L` from a certificate length bound and a `BoundedWhileDecider` on `pairBits (enc x) w` |
-| `PolyTimeReduction.of_forwardBitProducer` | TM0 `PolyTimeReduction` from a program that leaves the output bits in its final store |
-| `TM0ComputableInPolyTime.of_forwardBitProducer` | The same, as computability before forming a `PolyTimeReduction` |
-| `BoundedWhileDecider.ofBounds` | For producers: defines the decided predicate from the program's output and requires only cost and operand-bound proofs |
-| `NPHard.of_threeSAT` / `NPComplete.of_threeSAT` | `NPHard` / `NPComplete` from a reduction from 3SAT (and `InNP`) |
+- `InP.of_boundedWhileDecider` gives `InP ea L` from a decider with a trivial promise.
+- `InNP.of_bounded_while_verifier` gives `InNP enc L` from a certificate bound and a decider on
+  `pairBits (enc x) w`.
+- `PolyTimeReduction.of_forwardBitProducer` builds a TM0 reduction from a program that leaves its
+  output bits in the final store. `TM0ComputableInPolyTime.of_forwardBitProducer` gives the
+  corresponding computability result before forming a reduction.
+- `BoundedWhileDecider.ofBounds` defines the decided predicate from a producer's output, requiring
+  only cost and operand-bound proofs.
+- `NPHard.of_threeSAT` / `NPComplete.of_threeSAT` give hardness / completeness from a reduction
+  from 3SAT (and `InNP` for completeness).
+
+For constructing verifiers and reduction producers, these construction-layer tools help discharge
+resource and store obligations:
+
+- `RAMToTM.BoundedWhileDecider.ofProgramBoundedIn` builds a decider for a scan-free program from a
+  polynomial value bound. `RAMToTM.exists_resources_of_programBoundedIn` provides cost and operand
+  bounds separately; `RAMToTM.exists_resources_of_monomial_bound` specializes to a monomial bound.
+- `CookLevin.pairPreludeDecider` builds a verifier decider from a bounded body and its correctness.
+  `CookLevin.exists_pairPrelude_resources` and `exists_pairPrelude_resources_of_monomial_bound`
+  provide the complete prelude-plus-body resource bounds separately.
+- `RAMToTM.exists_cost_le_of_programBoundedIn` bounds a scan-free program's cost polynomially in
+  its value bound, including for intermediate stores.
+- The syntax-specific `ProgramBoundedIn` lemmas decompose resource proofs; in particular,
+  `RAMToTM.programBoundedIn_forN_of_indexed` uses an indexed invariant for a loop body.
+- `RAMToTM.BitsFrom` describes bits stored from a given cell, useful for verifier and producer
+  correctness proofs.
+- `RAMToTM.readUnaryProgAt` reads unary data with initialized counters; `decodeUnaryProgAt` is the
+  lower-level reader. `CookLevin.decodeLiteralValueProgramAt` reads an encoded literal's value.
+- `RAMToTM.forwardCopyProg` moves an input region to a higher, non-overlapping destination while
+  preserving the source, providing workspace for a verifier or producer.
 
 The producer entry points do not expose ABI types in their statements. Their hypotheses are
 facts about the final store: cell 0 holds the output start address, cell 1 the output length,
@@ -269,8 +293,8 @@ a TM2 computation with Boolean output connects to TM0 via `TM2ComputableInPolyTi
 
 The example body below matches the code between the markers in
 `NPComplete/Test/ReadmeExample.lean`. The test places `import NPComplete` before that block because
-Lean imports must precede the example declarations; `lake build NPComplete.Extra` compiles it, so the
-example is checked against the current library.
+Lean imports must precede the example declarations; `lake build NPComplete.Extra` compiles it, so
+the example is checked against the current library.
 
 ```lean
 import NPComplete
@@ -408,16 +432,17 @@ declarations. You may import a leaf module directly, but you bear the risk that 
 
 **Changes by layer.**
 
-| Layer | How changes are made |
-| --- | --- |
-| `@[stable_api]` | The statement is a compatibility promise. A change is a breaking change and is made deliberately, with the pinned statements in `NPComplete/Test/StableApi.lean` updated. |
-| `@[construction_api]` | You may use it, but it may change. A change raises the minor version. |
-| Untagged (internal) | Changed without notice. You may use it, but you bear the risk that it changes silently. |
+- `@[stable_api]`: the statement is a compatibility promise. A change is breaking and is made
+  deliberately, with the pinned statements in `NPComplete/Test/StableApi.lean` updated.
+- `@[construction_api]`: you may use it, but it may change. A change raises the minor version.
+- Untagged (internal): changed without notice. You may use it, but it may change silently.
 
 **Versions.** The library starts at 0.x (`lakefile.toml`). While the major version is 0, a
 breaking change to a stable declaration also raises the minor version. From 1.0 on, a breaking
 change to a stable declaration raises the major version, and a change to a construction
-declaration raises the minor version.
+declaration raises the minor version. Version 0.4.0 adds construction entry points and moves some
+declarations to namespaces matching their subjects. Their former internal names remain as aliases,
+but internal names are outside the compatibility promise.
 
 **Meaning of stable definitions.** For a stable recursive definition, the equation lemmas (one per
 constructor) are stable and fix its meaning. The unfolded form that `simp [f]` or similar tactics
