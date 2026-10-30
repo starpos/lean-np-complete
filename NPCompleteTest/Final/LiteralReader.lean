@@ -25,4 +25,12 @@ example : (decodeLiteralValueProgramAt 0 1 2 3 4).eval sampleLiteralStore 2 = 2 
     (by decide) (by decide) (by decide) sample_bits
   exact h.2.2.1
 
+example (σ : Store) : (decodeLiteralValueProgramAt 0 1 2 3 4).eval σ 5 = σ 5 :=
+  decodeLiteralValueProgramAt_frame 0 1 2 3 4 5 σ (by decide) (by decide) (by decide) (by decide)
+
+example : ProgramBoundedIn 11 sampleLiteralStore (decodeLiteralValueProgramAt 0 1 2 3 4) :=
+  decodeLiteralValueProgramAt_bounded (b := 6) (l := .neg 2) (rest := [false, true])
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) sample_bits (by decide) (by decide)
+
 end NPCompleteTest.LiteralReader

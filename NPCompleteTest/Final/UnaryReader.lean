@@ -23,4 +23,11 @@ example : (readUnaryProgAt 0 1 2 3).eval sampleStore 1 = 3 := by
     (by decide) (by decide) (by decide) (by decide) sample_bits
   exact h.2.1
 
+example {P : ℕ → Prop} (h0 : ¬ P 0) (h1 : ¬ P 1) (h2 : ¬ P 2) :
+    (readUnaryProgAt 0 1 2 3).Avoids P := readUnaryProgAt_avoids h0 h1 h2
+
+example {σ : Store} {b : ℕ} {xs ys : Bits} (h : BitsFrom σ b xs)
+    (h' : BitsFrom σ (b + xs.length) ys) : BitsFrom σ b (xs ++ ys) :=
+  BitsFrom.append h h'
+
 end NPCompleteTest.UnaryReader

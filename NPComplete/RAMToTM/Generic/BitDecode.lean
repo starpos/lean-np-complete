@@ -357,6 +357,20 @@ lemma decodeUnaryProgAt_eq (cursorReg countReg doneReg : ℕ) (boundE : Expr)
     rw [show addr + (bits1.length + i) = addr + bits1.length + i from by omega] at heq
     simpa using heq
 
+@[construction_api] lemma BitsFrom.append {σ : Store} {b : ℕ} {xs ys : Bits}
+    (hx : BitsFrom σ b xs) (hy : BitsFrom σ (b + xs.length) ys) :
+    BitsFrom σ b (xs ++ ys) := by
+  intro i hi
+  by_cases hix : i < xs.length
+  · rw [List.getElem_append_left hix]
+    exact hx i hix
+  · have hiy : i - xs.length < ys.length := by simp only [List.length_append] at hi; omega
+    rw [List.getElem_append_right (by omega)]
+    have h := hy (i - xs.length) hiy
+    have he : b + xs.length + (i - xs.length) = b + i := by omega
+    rw [he] at h
+    exact h
+
 @[construction_api] lemma bitsFrom_of_eq_on {σ σ' : Store} {addr : ℕ} {bits : Bits}
     (h : ∀ i, i < bits.length → σ' (addr + i) = σ (addr + i)) (hb : BitsFrom σ addr bits) :
     BitsFrom σ' addr bits := fun i hi => by rw [h i hi]; exact hb i hi
@@ -388,7 +402,7 @@ lemma decodeUnaryProgAt_eq (cursorReg countReg doneReg : ℕ) (boundE : Expr)
     ScanFree (readUnaryProgAt c k d lr) := by
   simp [readUnaryProgAt, ScanFree, scanFree_decodeUnaryProgAt]
 
-lemma readUnaryProgAt_avoids {c k d lr : ℕ} {P : ℕ → Prop}
+@[construction_api] lemma readUnaryProgAt_avoids {c k d lr : ℕ} {P : ℕ → Prop}
     (hc : ¬ P c) (hk : ¬ P k) (hd : ¬ P d) :
     (readUnaryProgAt c k d lr).Avoids P := by
   simp [readUnaryProgAt, Program.Avoids, decodeUnaryProgAt, decodeUnaryStep, hc, hk, hd]

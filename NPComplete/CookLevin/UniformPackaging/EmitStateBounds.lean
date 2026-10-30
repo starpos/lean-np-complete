@@ -2,6 +2,7 @@ module
 
 public import NPComplete.CookLevin.UniformPackaging.WriterRawBounds
 public import NPComplete.BoundedWhile.Frame
+meta import NPComplete.Meta.ApiLayer
 
 /-!
 # Parser state bounds during emission
@@ -90,13 +91,46 @@ lemma decodeLiteralValueProgramAt_root
   exact (decodeLiteralValueProgramAt_avoids_frame cursorReg polReg varReg doneReg boundReg).eval_frame
     σ ⟨h0c.symm, h0p.symm, h0v.symm, h0d.symm⟩
 
-lemma decodeLiteralValueProgramAt_frame
+@[construction_api] lemma decodeLiteralValueProgramAt_frame
     (cursorReg polReg varReg doneReg boundReg r : ℕ) (σ : Store)
     (hrc : r ≠ cursorReg) (hrp : r ≠ polReg) (hrv : r ≠ varReg)
     (hrd : r ≠ doneReg) :
     (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ r = σ r := by
   exact (decodeLiteralValueProgramAt_avoids_frame cursorReg polReg varReg doneReg boundReg).eval_frame
     σ ⟨hrc, hrp, hrv, hrd⟩
+
+@[construction_api] lemma decodeLiteralValueProgramAt_bounded
+    {c p k d lr b B : ℕ} {l : NPComplete.SAT.Literal} {rest : Bits} {σ : Store}
+    (hcb : c < b) (hpb : p < b) (hkb : k < b) (hdb : d < b)
+    (hcp : c ≠ p) (hck : c ≠ k) (hcd : c ≠ d) (hkd : k ≠ d)
+    (hc : σ c = b) (hcell : BitsFrom σ b (encodeLiteral l ++ rest))
+    (hlr : lr ≤ B) (hB : b + l.var + 3 ≤ B) :
+    ProgramBoundedIn B σ (decodeLiteralValueProgramAt c p k d lr) := by
+  change ProgramBoundedIn B σ (((Program.assign p (.regInd (.reg c))).seq
+    (Program.assign c (.add (.reg c) (.const 1)))).seq (readUnaryProgAt c k d lr))
+  let τ := writeReg (writeReg σ p (σ (σ c))) c (σ c + 1)
+  have hcell' : BitsFrom σ b ((!l.is_pos) :: (encodeNat l.var ++ rest)) := by
+    cases l <;> simpa [encodeLiteral, NPComplete.SAT.Literal.is_pos, NPComplete.SAT.Literal.var] using hcell
+  have hv : σ b ≤ 1 := by
+    have h := hcell' 0 (by simp)
+    cases hpos : l.is_pos <;> simp [hpos] at h <;> omega
+  have hτ : ∀ r, b ≤ r → τ r = σ r := by
+    intro r hr
+    dsimp [τ]
+    rw [writeReg_diff _ _ _ _ (by omega), writeReg_diff _ _ _ _ (by omega)]
+  have htail : BitsFrom τ (b+1) (encodeNat l.var ++ rest) := by
+    intro i hi
+    rw [hτ _ (by omega)]
+    exact (bitsFrom_cons _ _ _ _ hcell').2 i hi
+  have hread := readUnaryProgAt_bounded (c := c) (k := k) (d := d) (lr := lr) (addr := b+1)
+    (n := l.var) (rest := rest) (σ := τ) (B := B)
+    (by omega) (by omega) (by omega) hck hcd hkd
+    (by simp [τ, hc]) htail hlr (by omega)
+  refine ⟨⟨⟨by omega, ?_⟩, ?_⟩, ?_⟩
+  · simp only [ExprBoundedIn, Expr.eval, hc]; omega
+  · simp only [eval_assign, ProgramBoundedIn, ExprBoundedIn, Expr.eval,
+      writeReg_diff _ _ _ _ hcp, hc]; omega
+  · simpa [τ, eval_seq, eval_assign, Expr.eval, writeReg_diff _ _ _ _ hcp] using hread
 
 /-- The polarity register of a literal decoder always ends up holding the cell
     the cursor started on — independent of what that cell contains. -/
