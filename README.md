@@ -78,7 +78,7 @@ The main Cook-Levin declarations are in `NPComplete.CookLevin`.
 | `sat_NPHard`, `sat_NPComplete` | SAT over CNF is NP-hard / NP-complete |
 | `threeSAT_NPHard`, `threeSAT_NPComplete` | 3SAT over valid 3CNF is NP-hard / NP-complete |
 | `sat_inNP`, `threeSAT_inNP` | SAT / 3SAT are in NP |
-| `p_ne_np_implies_h3sat` | Under `PneNP`, 3SAT has no polynomial-time TM2 promise decider |
+| `p_ne_np_implies_h3sat` | Under `PneNP`, 3SAT over valid 3CNF has no polynomial-time TM2 promise decider |
 | `sat_InP_implies_PeqNP` | If SAT is `InP`, then `PeqNP` |
 | `threeSAT_InP_implies_PeqNP` | If 3SAT is `InP`, then `PeqNP` |
 
