@@ -3,6 +3,7 @@ module
 meta import NPComplete.Meta.ApiLayer
 public import NPComplete.BitEncoding
 public import NPComplete.RAMToTM.Generic.Api.BoundedWhileDecider
+public import NPComplete.RAMToTM.Generic.Api.CompileExecBounded
 public import NPComplete.BoundedWhile.Frame
 
 /-!
@@ -305,7 +306,7 @@ lemma decodeUnaryProg_frame (cursorReg countReg doneReg bound r : ℕ) (σ : Sto
 
 /-! ## Runtime-bound unary scanner -/
 
-def decodeUnaryProgAt (cursorReg countReg doneReg : ℕ) (boundE : Expr) : Program :=
+@[construction_api] def decodeUnaryProgAt (cursorReg countReg doneReg : ℕ) (boundE : Expr) : Program :=
   .forN boundE (decodeUnaryStep cursorReg countReg doneReg)
 
 lemma decodeUnaryProgAt_eq (cursorReg countReg doneReg : ℕ) (boundE : Expr)
@@ -316,7 +317,7 @@ lemma decodeUnaryProgAt_eq (cursorReg countReg doneReg : ℕ) (boundE : Expr)
   rw [eval_forN, eval_forN, hb]
   rfl
 
-lemma decodeUnaryProgAt_correct (cursorReg countReg doneReg : ℕ)
+@[construction_api] lemma decodeUnaryProgAt_correct (cursorReg countReg doneReg : ℕ)
     (hcc : cursorReg ≠ countReg) (hcd : cursorReg ≠ doneReg) (hkd : countReg ≠ doneReg)
     (n bound addr c0 : ℕ) (σ : Store) (boundE : Expr)
     (hbE : boundE.eval σ = bound) (hbound : n + 1 ≤ bound)
@@ -332,7 +333,7 @@ lemma decodeUnaryProgAt_correct (cursorReg countReg doneReg : ℕ)
   exact decodeUnaryProg_correct cursorReg countReg doneReg hcc hcd hkd n bound addr c0 σ
     hbound hca hka hda hc hk hd hbits
 
-lemma decodeUnaryProgAt_frame (cursorReg countReg doneReg : ℕ) (boundE : Expr)
+@[construction_api] lemma decodeUnaryProgAt_frame (cursorReg countReg doneReg : ℕ) (boundE : Expr)
     (r : ℕ) (σ : Store) (h1 : r ≠ cursorReg) (h2 : r ≠ countReg)
     (h3 : r ≠ doneReg) :
     (decodeUnaryProgAt cursorReg countReg doneReg boundE).eval σ r = σ r := by
@@ -360,5 +361,136 @@ lemma decodeUnaryProgAt_frame (cursorReg countReg doneReg : ℕ) (boundE : Expr)
     (h : ∀ i, i < bits.length → σ' (addr + i) = σ (addr + i)) (hb : BitsFrom σ addr bits) :
     BitsFrom σ' addr bits := fun i hi => by rw [h i hi]; exact hb i hi
 
+
+@[construction_api] lemma decodeUnaryProgAt_correct_append (cursorReg countReg doneReg : ℕ)
+    (hcc : cursorReg ≠ countReg) (hcd : cursorReg ≠ doneReg) (hkd : countReg ≠ doneReg)
+    (n bound addr c0 : ℕ) (σ : Store) (boundE : Expr) (rest : Bits)
+    (hbE : boundE.eval σ = bound) (hbound : n + 1 ≤ bound)
+    (hca : cursorReg < addr) (hka : countReg < addr) (hda : doneReg < addr)
+    (hc : σ cursorReg = addr) (hk : σ countReg = c0) (hd : σ doneReg = 0)
+    (hbits : BitsFrom σ addr (encodeNat n ++ rest)) :
+    (decodeUnaryProgAt cursorReg countReg doneReg boundE).eval σ cursorReg = addr + n + 1 ∧
+    (decodeUnaryProgAt cursorReg countReg doneReg boundE).eval σ countReg = c0 + n ∧
+    (decodeUnaryProgAt cursorReg countReg doneReg boundE).eval σ doneReg = 1 ∧
+    ∀ r, r ≠ cursorReg → r ≠ countReg → r ≠ doneReg →
+      (decodeUnaryProgAt cursorReg countReg doneReg boundE).eval σ r = σ r := by
+  exact decodeUnaryProgAt_correct cursorReg countReg doneReg hcc hcd hkd n bound addr c0 σ boundE
+    hbE hbound hca hka hda hc hk hd (bitsFrom_append σ addr _ _ hbits).1
+
+@[construction_api] lemma scanFree_decodeUnaryProgAt (c k d : ℕ) (e : Expr) :
+    ScanFree (decodeUnaryProgAt c k d e) := by
+  simp [ScanFree, decodeUnaryProgAt, decodeUnaryStep]
+
+@[construction_api] def readUnaryProgAt (c k d lr : ℕ) : Program :=
+  .seq (.assign k (.const 0)) (.seq (.assign d (.const 0)) (decodeUnaryProgAt c k d (.reg lr)))
+
+@[construction_api] lemma scanFree_readUnaryProgAt (c k d lr : ℕ) :
+    ScanFree (readUnaryProgAt c k d lr) := by
+  simp [readUnaryProgAt, ScanFree, scanFree_decodeUnaryProgAt]
+
+lemma readUnaryProgAt_avoids {c k d lr : ℕ} {P : ℕ → Prop}
+    (hc : ¬ P c) (hk : ¬ P k) (hd : ¬ P d) :
+    (readUnaryProgAt c k d lr).Avoids P := by
+  simp [readUnaryProgAt, Program.Avoids, decodeUnaryProgAt, decodeUnaryStep, hc, hk, hd]
+
+@[construction_api] lemma readUnaryProgAt_frame (c k d lr r : ℕ) (σ : Store)
+    (hc : r ≠ c) (hk : r ≠ k) (hd : r ≠ d) :
+    (readUnaryProgAt c k d lr).eval σ r = σ r :=
+  (readUnaryProgAt_avoids (P := fun x => x = r) (c := c) (k := k) (d := d) (lr := lr)
+    (fun h => hc h.symm) (fun h => hk h.symm) (fun h => hd h.symm)).eval_frame σ rfl
+
+@[construction_api] lemma readUnaryProgAt_correct {c k d lr b n : ℕ} {rest : Bits} {σ : Store}
+    (hcb : c < b) (hkb : k < b) (hdb : d < b) (hck : c ≠ k) (hcd : c ≠ d) (hkd : k ≠ d)
+    (hlk : lr ≠ k) (hld : lr ≠ d)
+    (hc : σ c = b) (hN : n + 1 ≤ σ lr) (hbits : BitsFrom σ b (encodeNat n ++ rest)) :
+    (readUnaryProgAt c k d lr).eval σ c = b + n + 1 ∧
+    (readUnaryProgAt c k d lr).eval σ k = n ∧
+    (readUnaryProgAt c k d lr).eval σ d = 1 ∧
+    ∀ r, r ≠ c → r ≠ k → r ≠ d → (readUnaryProgAt c k d lr).eval σ r = σ r := by
+  let τ := writeReg (writeReg σ k 0) d 0
+  have heq (r : ℕ) (hr : b ≤ r) : τ r = σ r := by
+    simp only [τ, writeReg_diff _ _ _ _ (show r ≠ d by omega),
+      writeReg_diff _ _ _ _ (show r ≠ k by omega)]
+  have hb : BitsFrom τ b (encodeNat n ++ rest) := bitsFrom_of_eq_on (fun i _ => heq _ (by omega)) hbits
+  have hrun := decodeUnaryProgAt_correct_append c k d hck hcd hkd n (σ lr) b 0 τ (.reg lr) rest
+    (by simp [Expr.eval, τ, writeReg_diff _ _ _ _ hld, writeReg_diff _ _ _ _ hlk]) hN
+    hcb hkb hdb (by simp [τ, writeReg_diff _ _ _ _ hcd, writeReg_diff _ _ _ _ hck, hc])
+    (by simp [τ, writeReg_diff _ _ _ _ hkd]) (by simp [τ]) hb
+  simp only [readUnaryProgAt, eval_seq, eval_assign, Expr.eval]
+  change (decodeUnaryProgAt c k d (.reg lr)).eval τ c = _ ∧
+    (decodeUnaryProgAt c k d (.reg lr)).eval τ k = _ ∧
+    (decodeUnaryProgAt c k d (.reg lr)).eval τ d = _ ∧ _
+  refine ⟨hrun.1, by simpa using hrun.2.1, hrun.2.2.1, ?_⟩
+  intro r hrc hrk hrd
+  rw [hrun.2.2.2 r hrc hrk hrd, show τ r = σ r by simp [τ, writeReg_diff _ _ _ _ hrd, writeReg_diff _ _ _ _ hrk]]
+
+lemma unary_step_bounded_aux (B c k d : ℕ) (σ : Store)
+    (hck : c ≠ k) (hcd : c ≠ d) (hidx : c ≤ B ∧ k ≤ B ∧ d ≤ B)
+    (hc : σ c + 1 ≤ B) (hk : σ k + 1 ≤ B) :
+    ProgramBoundedIn B σ (decodeUnaryStep c k d) := by
+  have hcursorDone : writeReg σ d 1 c = σ c := writeReg_diff σ d 1 c hcd
+  have hcursorCount : writeReg σ k (σ k + 1) c = σ c := writeReg_diff σ k (σ k + 1) c hck
+  simp [decodeUnaryStep, ProgramBoundedIn, ExprBoundedIn, Expr.eval, hcursorDone, hcursorCount]
+  omega
+
+lemma unary_loop_bounds_aux (c k d : ℕ)
+    (hck : c ≠ k) (hcd : c ≠ d) (hkd : k ≠ d)
+    (n addr c0 B : ℕ) (τ : Store)
+    (hca : c < addr) (hka : k < addr) (hda : d < addr)
+    (hc : τ c = addr) (hk : τ k = c0) (hd : τ d = 0)
+    (hbits : BitsFrom τ addr (encodeNat n))
+    (hcursor : addr + n + 2 ≤ B) (hcount : c0 + n + 1 ≤ B) :
+    ∀ m, (loopEval (decodeUnaryStep c k d) m τ) c + 1 ≤ B ∧
+      (loopEval (decodeUnaryStep c k d) m τ) k + 1 ≤ B := by
+  obtain ⟨hfc, hfk, hfd, _⟩ := decode_unary_loop_correct c k d hck hcd hkd n addr c0 τ
+    hca hka hda hc hk hd hbits
+  intro m
+  by_cases hsmall : m < n + 1
+  · have hcur := loopEval_decodeUnaryStep_cursor_le c k d hck hcd m τ
+    have hcnt := loopEval_decodeUnaryStep_count_le c k d hck hkd m τ
+    omega
+  · have hsplit : m = (n + 1) + (m - (n + 1)) := by omega
+    rw [hsplit, loopEval_add]
+    rw [loopEval_decodeUnaryStep_done c k d _ (m - (n + 1)) (by rw [hfd]; decide)]
+    constructor
+    · rw [hfc]; omega
+    · rw [hfk]; omega
+
+@[construction_api] lemma decodeUnaryProgAt_bounded {c k d lr n addr c0 B : ℕ}
+    {σ : Store} {rest : Bits}
+    (hck : c ≠ k) (hcd : c ≠ d) (hkd : k ≠ d)
+    (hca : c < addr) (hka : k < addr) (hda : d < addr)
+    (hc : σ c = addr) (hk : σ k = c0) (hd : σ d = 0)
+    (hbits : BitsFrom σ addr (encodeNat n ++ rest))
+    (hlr : lr ≤ B) (hcursor : addr + n + 2 ≤ B) (hcount : c0 + n + 1 ≤ B) :
+    ProgramBoundedIn B σ (decodeUnaryProgAt c k d (.reg lr)) := by
+  have hsteps := unary_loop_bounds_aux c k d hck hcd hkd n addr c0 B σ hca hka hda
+    hc hk hd (bitsFrom_append σ addr _ _ hbits).1 hcursor hcount
+  unfold decodeUnaryProgAt
+  simp only [ProgramBoundedIn, ExprBoundedIn, Expr.eval]
+  refine ⟨hlr, ?_⟩
+  intro m hm
+  exact unary_step_bounded_aux B c k d _ hck hcd ⟨by omega, by omega, by omega⟩
+    (hsteps m).1 (hsteps m).2
+
+@[construction_api] lemma readUnaryProgAt_bounded {c k d lr addr n B : ℕ}
+    {rest : Bits} {σ : Store}
+    (hca : c < addr) (hka : k < addr) (hda : d < addr)
+    (hck : c ≠ k) (hcd : c ≠ d) (hkd : k ≠ d)
+    (hc : σ c = addr) (hbits : BitsFrom σ addr (encodeNat n ++ rest))
+    (hlr : lr ≤ B) (hB : addr + n + 2 ≤ B) :
+    ProgramBoundedIn B σ (readUnaryProgAt c k d lr) := by
+  let τ := writeReg (writeReg σ k 0) d 0
+  have heq (r : ℕ) (hr : addr ≤ r) : τ r = σ r := by
+    simp only [τ, writeReg_diff _ _ _ _ (show r ≠ d by omega),
+      writeReg_diff _ _ _ _ (show r ≠ k by omega)]
+  have hb : BitsFrom τ addr (encodeNat n ++ rest) :=
+    bitsFrom_of_eq_on (fun i _ => heq _ (by omega)) hbits
+  have hp := decodeUnaryProgAt_bounded (lr := lr) (B := B) (c0 := 0) hck hcd hkd hca hka hda
+    (by simp [τ, writeReg_diff _ _ _ _ hcd, writeReg_diff _ _ _ _ hck, hc])
+    (by simp [τ, writeReg_diff _ _ _ _ hkd]) (by simp [τ]) hb hlr hB (by omega)
+  unfold readUnaryProgAt
+  simp only [ProgramBoundedIn, ExprBoundedIn, Expr.eval, eval_assign]
+  exact ⟨⟨by omega, by omega⟩, ⟨⟨by omega, by omega⟩, hp⟩⟩
 
 end NPComplete.RAMToTM

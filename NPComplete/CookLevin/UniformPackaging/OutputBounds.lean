@@ -96,10 +96,7 @@ lemma scanFree_decodeUnaryStep (cursorReg countReg doneReg : ℕ) :
     ScanFree (decodeUnaryStep cursorReg countReg doneReg) := by
   simp [ScanFree, decodeUnaryStep]
 
-lemma scanFree_decodeUnaryProgAt (cursorReg countReg doneReg : ℕ) (boundE : Expr) :
-    ScanFree (decodeUnaryProgAt cursorReg countReg doneReg boundE) := by
-  simpa [ScanFree, decodeUnaryProgAt] using
-    scanFree_decodeUnaryStep cursorReg countReg doneReg
+export NPComplete.RAMToTM (scanFree_decodeUnaryProgAt)
 
 lemma scanFree_decodeNatProgramAt (cursorReg countReg doneReg boundReg : ℕ) :
     ScanFree (decodeNatProgramAt cursorReg countReg doneReg boundReg) := by

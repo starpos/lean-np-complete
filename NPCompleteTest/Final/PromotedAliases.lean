@@ -39,6 +39,16 @@ example {B : ℕ} (σ : Store) (p : Program) (hB : 1 ≤ B) (hσ : StoreValuesLe
   exact NPComplete.CookLevin.program_eval_storeValuesLe σ p hB hσ hp hsf
 end Store
 
+section Unary
+open NPComplete.BoundedWhile NPComplete.CookLevin NPComplete.RAMToTM
+
+example (c k d : ℕ) (e : Expr) : ScanFree (decodeUnaryProgAt c k d e) := by
+  exact scanFree_decodeUnaryProgAt c k d e
+
+example (c k d : ℕ) (e : Expr) : ScanFree (decodeUnaryProgAt c k d e) := by
+  exact NPComplete.CookLevin.scanFree_decodeUnaryProgAt c k d e
+end Unary
+
 section Encoding
 open NPComplete.CookLevin NPComplete.SAT
 
