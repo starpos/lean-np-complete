@@ -1112,6 +1112,22 @@ info: NPComplete.BoundedWhile.loopEval_inv : ∀ (b : NPComplete.BoundedWhile.Pr
 #check @NPComplete.BoundedWhile.loopEval_inv
 
 /--
+info: NPComplete.BoundedWhile.loopEval_one : ∀ (body : NPComplete.BoundedWhile.Program) (σ : NPComplete.BoundedWhile.Store),
+  NPComplete.BoundedWhile.loopEval body 1 σ = body.eval σ
+-/
+#guard_msgs in
+#check @NPComplete.BoundedWhile.loopEval_one
+
+/--
+info: NPComplete.BoundedWhile.loopEval_add : ∀ (body : NPComplete.BoundedWhile.Program) (a b : ℕ)
+  (σ : NPComplete.BoundedWhile.Store),
+  NPComplete.BoundedWhile.loopEval body (a + b) σ =
+    NPComplete.BoundedWhile.loopEval body b (NPComplete.BoundedWhile.loopEval body a σ)
+-/
+#guard_msgs in
+#check @NPComplete.BoundedWhile.loopEval_add
+
+/--
 info: NPComplete.BoundedWhile.loopEval_succ : ∀ (body : NPComplete.BoundedWhile.Program) (k : ℕ)
   (σ : NPComplete.BoundedWhile.Store),
   NPComplete.BoundedWhile.loopEval body (k + 1) σ = NPComplete.BoundedWhile.loopEval body k (body.eval σ)

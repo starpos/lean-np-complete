@@ -37,6 +37,15 @@ namespace NPComplete.BitEncoding
 /-- Step equation of the unary encoding: each successor prepends one `false`. -/
 @[stable_api] lemma encodeNat_succ (n : ℕ) : encodeNat (n + 1) = false :: encodeNat n := rfl
 
+@[construction_api] lemma encodeNat_getElem : ∀ (n i : ℕ) (h : i < (encodeNat n).length),
+    (encodeNat n)[i] = decide (i = n)
+  | 0, 0, _ => rfl
+  | 0, i + 1, h => by simp at h
+  | n + 1, 0, _ => by simp [encodeNat_succ]
+  | n + 1, i + 1, h => by
+      have h' : i < (encodeNat n).length := by simpa [encodeNat_succ] using h
+      simp [encodeNat_succ, encodeNat_getElem n i h']
+
 /-- The unary encoding of `n` has exactly `n + 1` bits, which is the size measure that
     polynomial bounds are stated against. -/
 @[stable_api] lemma encodeNat_length : ∀ n, (encodeNat n).length = n + 1
@@ -126,7 +135,7 @@ lemma encodeList_append_inj
 /-- **Bit-size lower bound for `encodeList`.** The encoding starts with a unary
     `encodeNat l.length` of length `l.length + 1`, so the total bit-size is at
     least `l.length + 1 > l.length` for any piece encoder. -/
-lemma encodeList_length_ge {α : Type _} (enc : α → Bits) (l : List α) :
+@[construction_api] lemma encodeList_length_ge {α : Type _} (enc : α → Bits) (l : List α) :
     l.length + 1 ≤ (encodeList enc l).length := by
   simp only [encodeList, List.length_append, encodeNat_length]
   omega
@@ -134,7 +143,7 @@ lemma encodeList_length_ge {α : Type _} (enc : α → Bits) (l : List α) :
 /-- **Per-element bit-size lower bound for `encodeList`.** Any member's own encoding is no
     longer than the whole length-prefixed list encoding, since it sits inside the flattened
     body. -/
-lemma encodeList_length_ge_of_mem {α : Type _} (enc : α → Bits) {l : List α} {x : α}
+@[construction_api] lemma encodeList_length_ge_of_mem {α : Type _} (enc : α → Bits) {l : List α} {x : α}
     (hx : x ∈ l) : (enc x).length ≤ (encodeList enc l).length := by
   have hflat : (enc x).length ≤ (l.map enc).flatten.length := by
     induction l with

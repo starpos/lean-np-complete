@@ -381,56 +381,7 @@ lemma programBoundedIn_writerAppendLiteralProg_raw_bounds
     exact hnat.2.2.2
   exact ⟨hprog, hroot, hcursor, hcursor0⟩
 
-lemma program_eval_storeValuesLe {B : ℕ} (σ : Store) (p : Program)
-    (hB1 : 1 ≤ B) (hσ : StoreValuesLe B σ)
-    (hp : ProgramBoundedIn B σ p) (hsf : ScanFree p) :
-    StoreValuesLe B (p.eval σ) := by
-  induction p generalizing σ with
-  | skip => simpa using hσ
-  | assign r e =>
-      obtain ⟨hr, he⟩ := hp
-      intro i
-      simp [eval_assign, writeReg]
-      split_ifs with hi
-      · subst i
-        exact expr_eval_le_of_bounded_in hσ hB1 e he
-      · exact hσ i
-  | assignInd eA eV =>
-      obtain ⟨heA, heV, heAval⟩ := hp
-      have hv := expr_eval_le_of_bounded_in hσ hB1 eV heV
-      intro i
-      simp [eval_assignInd, writeReg]
-      split_ifs with hi
-      · exact hv
-      · exact hσ i
-  | seq p1 p2 ih1 ih2 =>
-      obtain ⟨hp1, hp2⟩ := hp
-      obtain ⟨hsf1, hsf2⟩ := hsf
-      rw [eval_seq]
-      exact ih2 (p1.eval σ) (ih1 σ hσ hp1 hsf1) hp2 hsf2
-  | ifNZ e t f iht ihf =>
-      obtain ⟨he, hpt, hpf⟩ := hp
-      obtain ⟨hsft, hsff⟩ := hsf
-      by_cases hz : e.eval σ ≠ 0
-      · rw [eval_ifNZ, ite_eq_left hz]
-        exact iht σ hσ hpt hsft
-      · rw [eval_ifNZ, ite_eq_right hz]
-        exact ihf σ hσ hpf hsff
-  | forN n body ihbody =>
-      obtain ⟨hn, hbody⟩ := hp
-      have hloop : ∀ k, k ≤ n.eval σ → StoreValuesLe B (loopEval body k σ) := by
-        intro k
-        induction k with
-        | zero => intro _; simpa using hσ
-        | succ k ihk =>
-            intro hk
-            rw [uniform_loopEval_succ_right]
-            exact ihbody (loopEval body k σ) (ihk (by omega))
-              (hbody k (by omega)) hsf
-      rw [eval_forN]
-      exact hloop (n.eval σ) le_rfl
-  | scanList _ _ _ _ => cases hsf
-  | lookup _ _ _ => cases hsf
+export NPComplete.RAMToTM (program_eval_storeValuesLe)
 
 lemma storeValuesLe_assign {B : ℕ} {σ : Store} {r : ℕ} {e : Expr}
     (hσ : StoreValuesLe B σ) (hv : e.eval σ ≤ B) :

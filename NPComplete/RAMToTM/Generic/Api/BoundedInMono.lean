@@ -1,5 +1,6 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
 public import NPComplete.RAMToTM.Generic.Api.CompileExecBounded
 
 /-!
@@ -16,7 +17,7 @@ namespace NPComplete.RAMToTM
 
 open NPComplete.BoundedWhile
 
-lemma exprBoundedIn_mono : ∀ (e : Expr) {B B' : ℕ} {σ : Store}, B ≤ B' →
+@[construction_api] lemma exprBoundedIn_mono : ∀ (e : Expr) {B B' : ℕ} {σ : Store}, B ≤ B' →
     ExprBoundedIn B σ e → ExprBoundedIn B' σ e := by
   intro e
   induction e with
@@ -47,7 +48,7 @@ lemma exprBoundedIn_mono : ∀ (e : Expr) {B B' : ℕ} {σ : Store}, B ≤ B' �
       simp only [ExprBoundedIn] at h ⊢
       exact ⟨ih₁ hB h.1, ih₂ hB h.2⟩
 
-lemma programBoundedIn_mono : ∀ (p : Program) {B B' : ℕ} {σ : Store}, B ≤ B' →
+@[construction_api] lemma programBoundedIn_mono : ∀ (p : Program) {B B' : ℕ} {σ : Store}, B ≤ B' →
     ProgramBoundedIn B σ p → ProgramBoundedIn B' σ p := by
   intro p
   induction p with

@@ -1,5 +1,6 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
 public import NPComplete.RAMToTM.Generic.Api.CompileExecBounded
 public import NPComplete.BoundedWhile.Basic
 public import Mathlib.Algebra.Polynomial.Eval.Defs
@@ -274,12 +275,12 @@ lemma polynomial_nat_eval_le_power (p : Polynomial ℕ) (N : ℕ) :
     _ = (A * C) * (N + 1) ^ c := by ring
     _ ≤ c * (N + 1) ^ c := Nat.mul_le_mul_right _ hAC
 
-lemma programBoundedIn_assign (B r : ℕ) (σ : Store) (e : Expr)
+@[construction_api] lemma programBoundedIn_assign (B r : ℕ) (σ : Store) (e : Expr)
     (hr : r ≤ B) (he : ExprBoundedIn B σ e) :
     ProgramBoundedIn B σ (.assign r e) :=
   ⟨hr, he⟩
 
-lemma programBoundedIn_seq (p q : Program) (B : ℕ) (σ : Store)
+@[construction_api] lemma programBoundedIn_seq (p q : Program) (B : ℕ) (σ : Store)
     (hp : ProgramBoundedIn B σ p)
     (hq : ProgramBoundedIn B (p.eval σ) q) :
     ProgramBoundedIn B σ (.seq p q) :=

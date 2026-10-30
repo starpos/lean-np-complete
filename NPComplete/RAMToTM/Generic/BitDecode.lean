@@ -1,5 +1,6 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
 public import NPComplete.BitEncoding
 public import NPComplete.RAMToTM.Generic.Api.BoundedWhileDecider
 public import NPComplete.BoundedWhile.Frame
@@ -24,10 +25,10 @@ open NPComplete.BitEncoding (Bits encodeNat encodeNat_succ encodeNat_length)
 /-- `σ` holds `bits` as `0`/`1` `Nat` cells starting at address `addr` — the shape
     `BoundedWhileDecider.bitInputStore` gives its bit region, generalized to an arbitrary base so
     it can describe the store mid-decode (past cells already consumed). -/
-def BitsFrom (σ : Store) (addr : ℕ) (bits : Bits) : Prop :=
+@[construction_api] def BitsFrom (σ : Store) (addr : ℕ) (bits : Bits) : Prop :=
   ∀ i, (h : i < bits.length) → σ (addr + i) = if bits[i] then 1 else 0
 
-lemma bits_from_bitInputStore (bits : Bits) :
+@[construction_api] lemma bits_from_bitInputStore (bits : Bits) :
     BitsFrom (bitInputStore bits) 1 bits := by
   intro i hi
   have haddr : 1 + i = i + 1 := Nat.add_comm 1 i
@@ -35,7 +36,7 @@ lemma bits_from_bitInputStore (bits : Bits) :
   simp only [bitInputStore]
   rw [List.getD_eq_getElem _ false hi]
 
-lemma bitsFrom_cons (σ : Store) (addr : ℕ) (b : Bool) (rest : Bits)
+@[construction_api] lemma bitsFrom_cons (σ : Store) (addr : ℕ) (b : Bool) (rest : Bits)
     (h : BitsFrom σ addr (b :: rest)) :
     σ addr = (if b then 1 else 0) ∧ BitsFrom σ (addr + 1) rest := by
   refine ⟨?_, ?_⟩
@@ -341,7 +342,7 @@ lemma decodeUnaryProgAt_frame (cursorReg countReg doneReg : ℕ) (boundE : Expr)
     (fun τ => decodeUnaryStep_frame cursorReg countReg doneReg r τ h1 h2 h3)
     (boundE.eval σ) σ
 
-lemma bitsFrom_append (σ : Store) (addr : ℕ) (bits1 bits2 : Bits)
+@[construction_api] lemma bitsFrom_append (σ : Store) (addr : ℕ) (bits1 bits2 : Bits)
     (h : BitsFrom σ addr (bits1 ++ bits2)) :
     BitsFrom σ addr bits1 ∧ BitsFrom σ (addr + bits1.length) bits2 := by
   constructor
@@ -355,7 +356,7 @@ lemma bitsFrom_append (σ : Store) (addr : ℕ) (bits1 bits2 : Bits)
     rw [show addr + (bits1.length + i) = addr + bits1.length + i from by omega] at heq
     simpa using heq
 
-lemma bitsFrom_of_eq_on {σ σ' : Store} {addr : ℕ} {bits : Bits}
+@[construction_api] lemma bitsFrom_of_eq_on {σ σ' : Store} {addr : ℕ} {bits : Bits}
     (h : ∀ i, i < bits.length → σ' (addr + i) = σ (addr + i)) (hb : BitsFrom σ addr bits) :
     BitsFrom σ' addr bits := fun i hi => by rw [h i hi]; exact hb i hi
 

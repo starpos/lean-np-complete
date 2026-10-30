@@ -27,6 +27,22 @@ open NPComplete.BitEncoding
   | Literal.pos i => false :: encodeNat i
   | Literal.neg i => true :: encodeNat i
 
+@[construction_api] lemma encodeLiteral_ends_true (l : Literal) :
+    ∃ xs, encodeLiteral l = xs ++ [true] := by
+  have hn (n : ℕ) : ∃ xs, encodeNat n = xs ++ [true] := by
+    induction n with
+    | zero => exact ⟨[], rfl⟩
+    | succ n ih =>
+      obtain ⟨xs, hxs⟩ := ih
+      exact ⟨false :: xs, by simp [NPComplete.BitEncoding.encodeNat_succ, hxs]⟩
+  cases l with
+  | pos n =>
+    obtain ⟨xs, hxs⟩ := hn n
+    exact ⟨false :: xs, by simp [encodeLiteral, hxs]⟩
+  | neg n =>
+    obtain ⟨xs, hxs⟩ := hn n
+    exact ⟨true :: xs, by simp [encodeLiteral, hxs]⟩
+
 lemma encodeLiteral_append_inj {a b : Literal} {xs ys : Bits}
     (h : encodeLiteral a ++ xs = encodeLiteral b ++ ys) : a = b ∧ xs = ys := by
   cases a <;> cases b <;> simp only [encodeLiteral, List.cons_append, List.cons.injEq] at h
@@ -71,7 +87,7 @@ lemma encodeThreeCNF_injective : Function.Injective encodeThreeCNF := by
 /-- `encodeThreeCNF`'s two length contributors (`encodeNat numVars`'s prefix, `encodeList`'s
     length-prefix) both lower-bound the total, giving a two-for-one bound useful for converting
     a `numVars`/`clauses.length`-indexed polynomial into one indexed by the encoding length. -/
-lemma encodeThreeCNF_numVars_add_clauses_length_le (f : ThreeCNF) :
+@[construction_api] lemma encodeThreeCNF_numVars_add_clauses_length_le (f : ThreeCNF) :
     f.numVars + f.clauses.length ≤ (encodeThreeCNF f).length := by
   unfold encodeThreeCNF
   simp only [List.length_append]

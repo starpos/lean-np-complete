@@ -38,16 +38,7 @@ open NPComplete.BitCostRAM (RAM emptyBank run Instruction bitLen
   step run_succ_right run_zero run_halted cost_step_eq_add instructionCost)
 open NPComplete.BoundedWhile (loopEval loopEval_succ loopEval_zero)
 
-lemma loopEval_one (body : Program) (σ : Store) : loopEval body 1 σ = body.eval σ := by
-  rw [show (1 : ℕ) = 0 + 1 from rfl, loopEval_succ, loopEval_zero]
-
-lemma loopEval_add (body : Program) (a b : ℕ) (σ : Store) :
-    loopEval body (a + b) σ = loopEval body b (loopEval body a σ) := by
-  induction a generalizing σ with
-  | zero => simp
-  | succ a ih =>
-    have e1 : a + 1 + b = (a + b) + 1 := by omega
-    rw [e1, loopEval_succ, ih, loopEval_succ]
+export NPComplete.BoundedWhile (loopEval_one loopEval_add)
 
 /-- The canonical loader shared by every `BoundedWhileDecider`: cell `0` holds the
     bit length of `bits`, cell `i + 1` holds bit `i` (as `0`/`1`), every other cell
@@ -58,12 +49,19 @@ lemma loopEval_add (body : Program) (a b : ℕ) (σ : Store) :
     | 0 => bits.length
     | r + 1 => if bits.getD r false then 1 else 0
 
+@[construction_api] lemma bitInputStore_zero (bits : Bits) :
+    bitInputStore bits 0 = bits.length := rfl
+
+@[construction_api] lemma bitInputStore_succ_of_lt (bits : Bits) (i : ℕ)
+    (h : i < bits.length) : bitInputStore bits (i + 1) = if bits[i] then 1 else 0 := by
+  simp only [bitInputStore, List.getD_eq_getElem _ false h]
+
 /-! ## Blank cells after the encoded input -/
 
 /-- Every cell at or past `bits.length + 1` (one past the encoded input bits) is `0` on a
     freshly loaded `bitInputStore` — the workspace a reduction grows into starts blank, so heap
     appends do not inherit residual bits from the loader. -/
-lemma bitInputStore_eq_zero_of_ge_inputEnd (bits : Bits) (r : ℕ)
+@[construction_api] lemma bitInputStore_eq_zero_of_ge_inputEnd (bits : Bits) (r : ℕ)
     (hr : bits.length + 1 ≤ r) : bitInputStore bits r = 0 := by
   match r with
   | 0 => omega

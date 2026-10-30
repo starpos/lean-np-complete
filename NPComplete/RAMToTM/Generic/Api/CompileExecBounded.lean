@@ -358,6 +358,44 @@ lemma expr_eval_le_of_bounded_in {B : ℕ} {σ : Store} (hσ : ∀ i, σ i ≤ B
    | .scanList _ _ _ => True
    | .lookup _ _ _ => True
 
+@[construction_api] lemma programBoundedIn_assign_iff (B : ℕ) (σ : Store) (r : ℕ) (e : Expr) :
+    ProgramBoundedIn B σ (.assign r e) ↔ r ≤ B ∧ ExprBoundedIn B σ e := Iff.rfl
+
+@[construction_api] lemma programBoundedIn_assignInd_iff (B : ℕ) (σ : Store) (a v : Expr) :
+    ProgramBoundedIn B σ (.assignInd a v) ↔
+      ExprBoundedIn B σ a ∧ ExprBoundedIn B σ v ∧ a.eval σ ≤ B := Iff.rfl
+
+@[construction_api] lemma programBoundedIn_seq_iff (B : ℕ) (σ : Store) (p q : Program) :
+    ProgramBoundedIn B σ (.seq p q) ↔
+      ProgramBoundedIn B σ p ∧ ProgramBoundedIn B (p.eval σ) q := Iff.rfl
+
+@[construction_api] lemma programBoundedIn_ifNZ_iff (B : ℕ) (σ : Store) (e : Expr)
+    (t f : Program) : ProgramBoundedIn B σ (.ifNZ e t f) ↔
+      ExprBoundedIn B σ e ∧ ProgramBoundedIn B σ t ∧ ProgramBoundedIn B σ f := Iff.rfl
+
+@[construction_api] lemma programBoundedIn_forN_iff (B : ℕ) (σ : Store) (n : Expr)
+    (body : Program) : ProgramBoundedIn B σ (.forN n body) ↔
+      ExprBoundedIn B σ n ∧ ∀ i < n.eval σ, ProgramBoundedIn B (loopEval body i σ) body :=
+  Iff.rfl
+
+@[construction_api] lemma programBoundedIn_forN_of_indexed (B : ℕ) (σ : Store) (n : Expr)
+    (body : Program) (I : ℕ → Store → Prop) (hinit : I 0 σ)
+    (hstep : ∀ i < n.eval σ, ∀ τ, I i τ → I (i + 1) (body.eval τ))
+    (hbody : ∀ i < n.eval σ, I i (loopEval body i σ) →
+      ProgramBoundedIn B (loopEval body i σ) body)
+    (hn : ExprBoundedIn B σ n) : ProgramBoundedIn B σ (.forN n body) := by
+  refine ⟨hn, ?_⟩
+  intro i hi
+  apply hbody i hi
+  have inv : ∀ j ≤ i, I j (loopEval body j σ) := by
+    intro j hj
+    induction j with
+    | zero => simpa using hinit
+    | succ j ih =>
+      rw [loopEval_succ_snoc]
+      exact hstep j (by omega) _ (ih (by omega))
+  exact inv i le_rfl
+
 /-- `ProgramBoundedIn` for `forN` only inspects the bound `Expr` through its entry-store value
     and the loop's own visited-store obligations, so an extensionally equal replacement bound
     (same value, still `≤ B`) preserves it — the uniformization target `.forN (.const N)` to

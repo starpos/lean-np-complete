@@ -287,6 +287,18 @@ end
   | zero => simp
   | succ n ih => rw [loopEval_succ, ih, loopEval_succ]
 
+@[stable_api] lemma loopEval_one (body : Program) (σ : Store) :
+    loopEval body 1 σ = body.eval σ := by
+  rw [show (1 : ℕ) = 0 + 1 from rfl, loopEval_succ, loopEval_zero]
+
+@[stable_api] lemma loopEval_add (body : Program) (a b : ℕ) (σ : Store) :
+    loopEval body (a + b) σ = loopEval body b (loopEval body a σ) := by
+  induction a generalizing σ with
+  | zero => simp
+  | succ a ih =>
+    have e1 : a + 1 + b = (a + b) + 1 := by omega
+    rw [e1, loopEval_succ, ih, loopEval_succ]
+
 @[stable_api, simp] lemma scanListEval_nil (body : Program) (r : ℕ) (σ : Store) :
     scanListEval body [] r σ = σ := by simp [scanListEval]
 

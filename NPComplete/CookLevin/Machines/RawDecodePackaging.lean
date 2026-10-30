@@ -52,15 +52,7 @@ need. -/
       refine ⟨encodeNat (pre.length + 1) ++ (pre.map enc).flatten ++ ys, ?_⟩
       simp [encodeList, hys, List.append_assoc]
 
-lemma encodeLiteral_ends_true (l : Literal) :
-    ∃ xs, encodeLiteral l = xs ++ [true] := by
-  cases l with
-  | pos n =>
-      obtain ⟨xs, hxs⟩ := encodeNat_ends_true n
-      exact ⟨false :: xs, by simp [encodeLiteral, hxs]⟩
-  | neg n =>
-      obtain ⟨xs, hxs⟩ := encodeNat_ends_true n
-      exact ⟨true :: xs, by simp [encodeLiteral, hxs]⟩
+export NPComplete.SAT (encodeLiteral_ends_true)
 
 lemma encodeClause_ends_true (c : Clause) :
     ∃ xs, encodeClause c = xs ++ [true] :=
