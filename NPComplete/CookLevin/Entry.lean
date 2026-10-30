@@ -32,24 +32,6 @@ namespace NPComplete.RAMToTM
 open NPComplete.BoundedWhile (Program Store)
 open NPComplete.BitEncoding (Bits)
 
-/-- **Construction API.** Package a program with its cost and operand bounds as a
-    `BoundedWhileDecider` whose promise is trivial and whose language is simply "the answer
-    register is `1`". Producers have no meaningful decision language, so this fills it in
-    trivially and leaves only the two quantitative obligations. -/
-@[construction_api] def BoundedWhileDecider.ofBounds {α : Type} (ea : α → Bits) (p : Program) (outReg c bit_c : ℕ)
-    (cost_le : ∀ x, p.cost (bitInputStore (ea x)) ≤ c * ((ea x).length + 1) ^ c)
-    (compiled_operands_le : ∀ x, ∃ W, W ≤ bit_c * ((ea x).length + 1) ^ bit_c ∧
-      CompiledOperandBound p (ea x) W) :
-    BoundedWhileDecider ea (fun _ => True)
-      (fun x => p.eval (bitInputStore (ea x)) outReg = 1) where
-  p := p
-  outReg := outReg
-  c := c
-  correct := fun _ _ => Iff.rfl
-  cost_le := fun x _ => cost_le x
-  bit_c := bit_c
-  compiled_operands_le := fun x _ => compiled_operands_le x
-
 namespace Generic
 
 /-- **Internal (ABI bridge).** Output bits stored as `0`/`1` cells of a store determine the physical

@@ -8,6 +8,7 @@ public import NPComplete.CookLevin.Generate
 public import NPComplete.CookLevin.Machines.Drop
 public import NPComplete.CookLevin.Verifier.SATVerifier
 public import NPComplete.CookLevin.Verifier.ThreeSATVerifier
+public import NPComplete.CookLevin.Verifier.PairPreludeResources
 public import NPComplete.CookLevin.ToThreeCNF.SATToThreeCNF
 public import NPComplete.CookLevin.Classes
 public import NPComplete.CookLevin.ClassesRespectsEnc
