@@ -237,16 +237,14 @@ promise is trivial).
 Write a BoundedWhile program and prove its cost and operand bounds; no RAM-to-TM wiring is
 needed.
 
-- `InP.of_boundedWhileDecider` gives `InP ea L` from a decider with a trivial promise.
-- `InNP.of_bounded_while_verifier` gives `InNP enc L` from a certificate bound and a decider on
-  `pairBits (enc x) w`.
-- `PolyTimeReduction.of_forwardBitProducer` builds a TM0 reduction from a program that leaves its
-  output bits in the final store. `TM0ComputableInPolyTime.of_forwardBitProducer` gives the
-  corresponding computability result before forming a reduction.
-- `BoundedWhileDecider.ofBounds` defines the decided predicate from a producer's output, requiring
-  only cost and operand-bound proofs.
-- `NPHard.of_threeSAT` / `NPComplete.of_threeSAT` give hardness / completeness from a reduction
-  from 3SAT (and `InNP` for completeness).
+| Entry point | Conclusion |
+| --- | --- |
+| `InP.of_boundedWhileDecider` | `InP ea L` from `BoundedWhileDecider ea (fun _ => True) L` |
+| `InNP.of_bounded_while_verifier` | `InNP enc L` from a certificate length bound and a `BoundedWhileDecider` on `pairBits (enc x) w` |
+| `PolyTimeReduction.of_forwardBitProducer` | TM0 `PolyTimeReduction` from a program that leaves the output bits in its final store |
+| `TM0ComputableInPolyTime.of_forwardBitProducer` | The same, as computability before forming a `PolyTimeReduction` |
+| `BoundedWhileDecider.ofBounds` | For producers: defines the decided predicate from the program's output and requires only cost and operand-bound proofs |
+| `NPHard.of_threeSAT` / `NPComplete.of_threeSAT` | `NPHard` / `NPComplete` from a reduction from 3SAT (and `InNP`) |
 
 For constructing verifiers and reduction producers, these construction-layer tools help discharge
 resource and store obligations:
@@ -293,8 +291,8 @@ a TM2 computation with Boolean output connects to TM0 via `TM2ComputableInPolyTi
 
 The example body below matches the code between the markers in
 `NPComplete/Test/ReadmeExample.lean`. The test places `import NPComplete` before that block because
-Lean imports must precede the example declarations; `lake build NPComplete.Extra` compiles it, so
-the example is checked against the current library.
+Lean imports must precede the example declarations; `lake build NPComplete.Extra` compiles it, so the
+example is checked against the current library.
 
 ```lean
 import NPComplete
@@ -432,17 +430,20 @@ declarations. You may import a leaf module directly, but you bear the risk that 
 
 **Changes by layer.**
 
-- `@[stable_api]`: the statement is a compatibility promise. A change is breaking and is made
-  deliberately, with the pinned statements in `NPComplete/Test/StableApi.lean` updated.
-- `@[construction_api]`: you may use it, but it may change. A change raises the minor version.
-- Untagged (internal): changed without notice. You may use it, but it may change silently.
+| Layer | How changes are made |
+| --- | --- |
+| `@[stable_api]` | The statement is a compatibility promise. A change is a breaking change and is made deliberately, with the pinned statements in `NPComplete/Test/StableApi.lean` updated. |
+| `@[construction_api]` | You may use it, but it may change. A change raises the minor version. |
+| Untagged (internal) | Changed without notice. You may use it, but you bear the risk that it changes silently. |
 
 **Versions.** The library starts at 0.x (`lakefile.toml`). While the major version is 0, a
 breaking change to a stable declaration also raises the minor version. From 1.0 on, a breaking
 change to a stable declaration raises the major version, and a change to a construction
-declaration raises the minor version. Version 0.4.0 adds construction entry points and moves some
-declarations to namespaces matching their subjects. Their former internal names remain as aliases,
-but internal names are outside the compatibility promise.
+declaration raises the minor version.
+
+Version 0.4.0 adds construction entry points and moves some declarations to namespaces matching
+their subjects. Their former internal names remain as aliases, but internal names are outside the
+compatibility promise.
 
 **Meaning of stable definitions.** For a stable recursive definition, the equation lemmas (one per
 constructor) are stable and fix its meaning. The unfolded form that `simp [f]` or similar tactics
