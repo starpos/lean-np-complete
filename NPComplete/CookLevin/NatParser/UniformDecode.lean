@@ -1,5 +1,6 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
 public import NPComplete.CookLevin.NatParser
 public import NPComplete.RAMToTM.Generic.BitDecode
 public import NPComplete.RAMToTM.Generic.Relocate
@@ -74,7 +75,7 @@ lemma decodeNatProgramAt_bound_frame
       σ boundReg :=
   decodeNatProgramAt_frame cursorReg countReg doneReg boundReg boundReg σ hbc hbv hbd
 
-def decodeLiteralValueProgramAt
+@[construction_api] def decodeLiteralValueProgramAt
     (cursorReg polReg varReg doneReg boundReg : ℕ) : Program :=
   .seq (readBitAdvanceProg cursorReg polReg)
   <| .seq (.assign varReg (.const 0))
@@ -103,7 +104,7 @@ lemma decodeLiteralValueProgramAt_eq
     exact (writeReg_diff σ2 doneReg 0 boundReg (hbd)).trans hσ2
   exact decodeNatProgramAt_eq cursorReg varReg doneReg boundReg bound σ3 hσ3
 
-lemma decodeLiteralValueProgramAt_avoids_frame
+@[construction_api] lemma decodeLiteralValueProgramAt_avoids_frame
     (cursorReg polReg varReg doneReg boundReg : ℕ) :
     (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).Avoids
       (fun r => r ≠ cursorReg ∧ r ≠ polReg ∧ r ≠ varReg ∧ r ≠ doneReg) := by
@@ -119,7 +120,7 @@ lemma decodeLiteralValueProgramAt_bound_frame
   exact (decodeLiteralValueProgramAt_avoids_frame cursorReg polReg varReg doneReg boundReg).eval_frame
     σ ⟨hbc, hbp, hbv, hbd⟩
 
-lemma decodeLiteralValueProgramAt_correct
+@[construction_api] lemma decodeLiteralValueProgramAt_correct
     (cursorReg polReg varReg doneReg boundReg bound addr : ℕ) (l : Literal)
     (rest : Bits) (σ : Store)
     (hcp : cursorReg ≠ polReg) (hcv : cursorReg ≠ varReg)

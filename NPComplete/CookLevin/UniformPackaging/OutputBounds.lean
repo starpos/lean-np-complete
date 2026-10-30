@@ -1,5 +1,6 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
 public import NPComplete.CookLevin.UniformEmit
 public import NPComplete.RAMToTM.Generic.Api.AbiBitProducerMachine
 public import NPComplete.RAMToTM.ThreeSat.Pipeline.ThreeSatInputRelocate
@@ -103,7 +104,7 @@ lemma scanFree_decodeNatProgramAt (cursorReg countReg doneReg boundReg : ℕ) :
   simpa [decodeNatProgramAt] using
     scanFree_decodeUnaryProgAt cursorReg countReg doneReg (.reg boundReg)
 
-lemma scanFree_decodeLiteralValueProgramAt
+@[construction_api] lemma scanFree_decodeLiteralValueProgramAt
     (cursorReg polReg varReg doneReg boundReg : ℕ) :
     ScanFree (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg
       boundReg) := by

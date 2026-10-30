@@ -1,5 +1,6 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
 public import NPComplete.CookLevin.UniformPackaging.ReverseBounds
 
 /-!
@@ -145,7 +146,7 @@ lemma programBoundedIn_decodeNatProgramAt_of_bounds
   · have hc := loopEval_decodeUnaryStep_count_le cursorReg countReg doneReg hcc hcountDone m σ
     omega
 
-lemma programBoundedIn_decodeLiteralValueProgramAt_of_bounds
+@[construction_api] lemma programBoundedIn_decodeLiteralValueProgramAt_of_bounds
     (B cursorReg polReg varReg doneReg boundReg : ℕ) (σ : Store)
     (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ boundReg ≤ B)
     (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
