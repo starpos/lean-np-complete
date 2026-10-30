@@ -28,6 +28,10 @@ check. Instances are ordinary constants.
 `#check_api_layers` without arguments checks every tagged declaration in the environment.
 `#check_api_layers a b` checks only the named declarations (used by the negative test).
 
+`#check_api_instances` checks globally registered library instances of `Repr`, `DecidableEq`,
+`Inhabited` whose target has a tagged inductive type as its head. Such instances must carry a
+layer tag. It inspects instance types rather than declaration names.
+
 `#check_api_umbrella` verifies that every tagged declaration is defined in a module that the
 umbrella module `NPComplete` imports (transitively). Only the umbrella is promised to clients
 as an entry point, so a tagged declaration reachable only through another module would be a
@@ -165,6 +169,37 @@ partial def violationsOf (env : Environment) (n : Name) : Array String := Id.run
         out := out.push
           s!"{l.toString} declaration `{layerCheckName n}` mentions {have_} `{displayD}` in its {where_}"
   return out
+
+/-- Remove instance parameters to inspect the class application at its result. -/
+partial def instanceResult : Expr → Expr
+  | .forallE _ _ b _ => instanceResult b
+  | .mdata _ b => instanceResult b
+  | e => e
+
+/-- Recognize a tracked class applied to a tagged inductive or structure. -/
+def publicInstanceTarget? (env : Environment) (type : Expr) : Option Name := do
+  let e := instanceResult type
+  let cls ← e.getAppFn.constName?
+  guard (cls == ``Repr || cls == ``DecidableEq || cls == ``Inhabited)
+  let arg ← e.getAppArgs[0]?
+  let n ← arg.getAppFn.constName?
+  guard ((layerOf env n).isSome)
+  let .inductInfo _ ← env.find? n | none
+  return n
+
+syntax (name := checkApiInstances) "#check_api_instances" : command
+
+@[command_elab checkApiInstances] def elabCheckApiInstances : CommandElab := fun stx => do
+  let env ← getEnv
+  let names := (env.constants.toList.map Prod.fst |>.filter fun n =>
+    (layerCheckName n).getRoot == `NPComplete).toArray.qsort Name.lt
+  for n in names do
+    let some ci := env.find? n | continue
+    let some target := publicInstanceTarget? env ci.type | continue
+    let some entry := (instanceExtension.getState env).instanceNames.find? n | continue
+    unless entry.attrKind matches .global do continue
+    if (layerOf env n).isNone then
+      logErrorAt stx s!"instance `{layerCheckName n}` for public type `{target}` is untagged"
 
 syntax (name := checkApiLayers) "#check_api_layers" (ppSpace ident)* : command
 

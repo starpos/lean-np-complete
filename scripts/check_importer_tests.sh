@@ -40,6 +40,7 @@ echo "built ${#tests[@]} test modules"
 should_fail=(
   "NPCompleteTest/ShouldFail/DecideFalse.lean:proved that the proposition"
   "NPCompleteTest/ShouldFail/PlainImportSimp.lean:_mutual"
+  'NPCompleteTest/ShouldFail/UntaggedInstance.lean:instance `NPComplete.Test.arbitraryInstanceName` for public type `NPComplete.Test.InstanceFixture` is untagged'
 )
 for entry in "${should_fail[@]}"; do
   f=${entry%%:*}; needle=${entry#*:}

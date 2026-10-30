@@ -191,6 +191,8 @@ name the address by register index.  `halt` is a fixed-point instruction:
   | halt : Instruction
   deriving Repr, DecidableEq
 
+attribute [construction_api] instReprInstruction instDecidableEqInstruction
+
 /-! ## RAM state -/
 
 /-- Bit-cost RAM machine state: register / memory banks, program counter,

@@ -51,6 +51,8 @@ namespace NPComplete.BoundedWhile
   | eq : Expr → Expr → Expr
   deriving Repr
 
+attribute [stable_api] instReprExpr
+
 /-- Denotational value of an expression against a store. -/
 @[stable_api] def Expr.eval : Expr → Store → ℕ
   | .const n, _ => n
@@ -165,6 +167,8 @@ lookup with first-match priority and a zero default. -/
   | scanList : List ℕ → ℕ → Program → Program
   | lookup : List (ℕ × ℕ) → ℕ → ℕ → Program
   deriving Repr
+
+attribute [stable_api] instReprProgram
 
 /-! ## Evaluation
 

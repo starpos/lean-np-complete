@@ -21,6 +21,10 @@ namespace NPComplete.SAT
   | neg : Nat → Literal  -- ¬xᵢ
   deriving DecidableEq, Repr
 
+attribute [stable_api] instDecidableEqLiteral instReprLiteral
+
+@[stable_api] instance : Inhabited Literal := ⟨Literal.pos 0⟩
+
 namespace Literal
 
 /-- Get the variable index of a literal. -/
@@ -68,6 +72,8 @@ end Literal
   l2 : Literal
   l3 : Literal
   deriving DecidableEq, Repr
+
+attribute [stable_api] instDecidableEqThreeClause instReprThreeClause
 
 namespace ThreeClause
 
@@ -175,6 +181,8 @@ end ThreeClause
   numVars : Nat
   clauses : List ThreeClause
   deriving Repr
+
+attribute [stable_api] instReprThreeCNF
 
 namespace ThreeCNF
 

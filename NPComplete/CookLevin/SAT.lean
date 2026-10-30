@@ -20,10 +20,16 @@ open NPComplete.SAT (Literal)
   lits : List Literal
   deriving DecidableEq, Repr
 
+attribute [stable_api] instDecidableEqClause instReprClause
+
+@[stable_api] instance : Inhabited Clause := ⟨⟨[]⟩⟩
+
 /-- A CNF formula is a list of clauses. -/
 @[stable_api] structure CNF where
   clauses : List Clause
   deriving DecidableEq, Repr
+
+attribute [stable_api] instDecidableEqCNF instReprCNF
 
 namespace Clause
 

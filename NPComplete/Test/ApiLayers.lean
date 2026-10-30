@@ -10,11 +10,14 @@ meta import NPComplete.Meta.ApiLayerCheck
 Runs `#check_api_layers` over every `stable_api` and `construction_api` declaration reachable from
 `NPComplete` and from the modules collected in `Witnesses.lean`. A violation is an error, so a
 statement that starts to mention an internal declaration breaks `lake build NPComplete.Extra`.
+`#check_api_instances` also requires tracked global instances of public types to be tagged.
 
 `#check_api_umbrella` additionally requires every such declaration to be defined in a module that
 `import NPComplete` reaches, since the umbrella is the only entry point promised to clients.
 -/
 
 #check_api_layers
+
+#check_api_instances
 
 #check_api_umbrella

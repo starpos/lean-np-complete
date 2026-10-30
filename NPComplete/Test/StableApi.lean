@@ -14,6 +14,58 @@ of the expected output below, which is the review point for a breaking change.
 Construction API declarations are deliberately not pinned: they are allowed to change.
 -/
 
+/-- info: NPComplete.BoundedWhile.instReprExpr : Repr NPComplete.BoundedWhile.Expr -/
+#guard_msgs in
+#check @NPComplete.BoundedWhile.instReprExpr
+
+/-- info: NPComplete.BoundedWhile.instReprProgram : Repr NPComplete.BoundedWhile.Program -/
+#guard_msgs in
+#check @NPComplete.BoundedWhile.instReprProgram
+
+/-- info: NPComplete.CookLevin.instDecidableEqClause : DecidableEq NPComplete.CookLevin.Clause -/
+#guard_msgs in
+#check @NPComplete.CookLevin.instDecidableEqClause
+
+/-- info: NPComplete.CookLevin.instReprClause : Repr NPComplete.CookLevin.Clause -/
+#guard_msgs in
+#check @NPComplete.CookLevin.instReprClause
+
+/-- info: NPComplete.CookLevin.instInhabitedClause : Inhabited NPComplete.CookLevin.Clause -/
+#guard_msgs in
+#check @NPComplete.CookLevin.instInhabitedClause
+
+/-- info: NPComplete.CookLevin.instDecidableEqCNF : DecidableEq NPComplete.CookLevin.CNF -/
+#guard_msgs in
+#check @NPComplete.CookLevin.instDecidableEqCNF
+
+/-- info: NPComplete.CookLevin.instReprCNF : Repr NPComplete.CookLevin.CNF -/
+#guard_msgs in
+#check @NPComplete.CookLevin.instReprCNF
+
+/-- info: NPComplete.SAT.instDecidableEqLiteral : DecidableEq NPComplete.SAT.Literal -/
+#guard_msgs in
+#check @NPComplete.SAT.instDecidableEqLiteral
+
+/-- info: NPComplete.SAT.instReprLiteral : Repr NPComplete.SAT.Literal -/
+#guard_msgs in
+#check @NPComplete.SAT.instReprLiteral
+
+/-- info: NPComplete.SAT.instInhabitedLiteral : Inhabited NPComplete.SAT.Literal -/
+#guard_msgs in
+#check @NPComplete.SAT.instInhabitedLiteral
+
+/-- info: NPComplete.SAT.instDecidableEqThreeClause : DecidableEq NPComplete.SAT.ThreeClause -/
+#guard_msgs in
+#check @NPComplete.SAT.instDecidableEqThreeClause
+
+/-- info: NPComplete.SAT.instReprThreeClause : Repr NPComplete.SAT.ThreeClause -/
+#guard_msgs in
+#check @NPComplete.SAT.instReprThreeClause
+
+/-- info: NPComplete.SAT.instReprThreeCNF : Repr NPComplete.SAT.ThreeCNF -/
+#guard_msgs in
+#check @NPComplete.SAT.instReprThreeCNF
+
 /--
 info: NPComplete.BitEncoding.Bits : Type
 -/

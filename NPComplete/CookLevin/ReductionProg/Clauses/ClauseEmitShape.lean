@@ -22,9 +22,6 @@ namespace NPComplete.CookLevin
 open NPComplete.BitEncoding
 open NPComplete.SAT
 
-instance : Inhabited Literal := ⟨Literal.pos 0⟩
-instance : Inhabited Clause := ⟨⟨[]⟩⟩
-
 /-- A literal's polarity, as the tag bit the emitter writes. -/
 def litTag : Literal → Bool
   | .pos _ => false
