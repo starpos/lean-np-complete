@@ -57,4 +57,9 @@ example (l : Literal) : ∃ xs, encodeLiteral l = xs ++ [true] := by
 
 example (l : Literal) : ∃ xs, encodeLiteral l = xs ++ [true] := by
   exact NPComplete.CookLevin.encodeLiteral_ends_true l
+example (l : Literal) : (encodeLiteral l).length = l.var + 2 :=
+  encodeLiteral_length_eq l
+
+example (l : Literal) : (encodeLiteral l).length = l.var + 2 :=
+  NPComplete.CookLevin.encodeLiteral_length_eq l
 end Encoding

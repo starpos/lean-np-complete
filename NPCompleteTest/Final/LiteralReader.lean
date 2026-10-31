@@ -33,4 +33,9 @@ example : ProgramBoundedIn 11 sampleLiteralStore (decodeLiteralValueProgramAt 0 
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) sample_bits (by decide) (by decide)
 
+example : BitsFrom ((decodeLiteralValueProgramAt 0 1 2 3 4).eval sampleLiteralStore)
+    (6 + (encodeLiteral (.neg 2)).length) [false, true] :=
+  (decodeLiteralValueProgramAt_frame_rest 0 1 2 3 4 6 (.neg 2) [false, true]
+    sampleLiteralStore (by decide) (by decide) (by decide) (by decide) sample_bits).2
+
 end NPCompleteTest.LiteralReader

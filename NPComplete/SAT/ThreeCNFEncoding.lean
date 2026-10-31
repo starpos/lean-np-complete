@@ -27,6 +27,10 @@ open NPComplete.BitEncoding
   | Literal.pos i => false :: encodeNat i
   | Literal.neg i => true :: encodeNat i
 
+@[construction_api] lemma encodeLiteral_length_eq (l : Literal) :
+    (encodeLiteral l).length = l.var + 2 := by
+  cases l <;> simp [encodeLiteral, encodeNat_length, Literal.var]
+
 @[construction_api] lemma encodeLiteral_ends_true (l : Literal) :
     ∃ xs, encodeLiteral l = xs ++ [true] := by
   have hn (n : ℕ) : ∃ xs, encodeNat n = xs ++ [true] := by

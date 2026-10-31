@@ -72,6 +72,14 @@ lemma storeValuesLe_bitInputStore_length (bits : Bits) :
   | zero => simp [bitInputStore]
   | succ i => simp only [bitInputStore]; split <;> omega
 
+@[construction_api] lemma storeValuesLe_bitInputStore (bits : Bits) {B : ℕ}
+    (hB : 1 ≤ B) (hbits : bits.length ≤ B) :
+    StoreValuesLe B (bitInputStore bits) := by
+  intro i
+  cases i with
+  | zero => simpa [bitInputStore] using hbits
+  | succ i => simp only [bitInputStore]; split <;> omega
+
 /-- A polynomial value bound yields both resource bounds required by a decider. -/
 @[construction_api] lemma exists_resources_of_programBoundedIn {α : Type} (enc : α → Bits)
     (p : Program) (B : ℕ → ℕ) (q : Polynomial ℕ)

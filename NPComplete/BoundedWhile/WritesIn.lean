@@ -112,6 +112,11 @@ The binder is not the framed register, so binding each element leaves it unchang
     intro σ h r hr
     rw [eval_lookup, writeReg_diff _ _ _ _ (fun hrv : r = v => hr (hrv ▸ h))]
 
+@[construction_api] lemma WritesIn.preserves {S P : ℕ → Prop} {Q : Store → Prop}
+    {p : Program} {σ : Store} (hp : WritesIn S p σ) (hQ : ReadsOnly P Q)
+    (hSP : ∀ r, P r → ¬ S r) (h : Q σ) : Q (p.eval σ) :=
+  hQ σ _ (fun r hr => WritesIn.eval_frame p σ hp (hSP r hr)) h
+
 /-- A larger predicate still covers every write. -/
 @[construction_api] lemma WritesIn.mono {S T : ℕ → Prop} (hST : ∀ a, S a → T a) :
     ∀ (p : Program) (σ : Store), WritesIn S p σ → WritesIn T p σ := by

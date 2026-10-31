@@ -438,6 +438,18 @@ lemma decodeUnaryProgAt_eq (cursorReg countReg doneReg : ℕ) (boundE : Expr)
   intro r hrc hrk hrd
   rw [hrun.2.2.2 r hrc hrk hrd, show τ r = σ r by simp [τ, writeReg_diff _ _ _ _ hrd, writeReg_diff _ _ _ _ hrk]]
 
+@[construction_api] lemma readUnaryProgAt_frame_rest {c k d lr b n : ℕ} {rest : Bits}
+    {σ : Store} (hcb : c < b) (hkb : k < b) (hdb : d < b)
+    (hbits : BitsFrom σ b (encodeNat n ++ rest)) :
+    (∀ r, b ≤ r → (readUnaryProgAt c k d lr).eval σ r = σ r) ∧
+      BitsFrom ((readUnaryProgAt c k d lr).eval σ) (b + n + 1) rest := by
+  have hf : ∀ r, b ≤ r → (readUnaryProgAt c k d lr).eval σ r = σ r := by
+    intro r hr
+    exact readUnaryProgAt_frame c k d lr r σ (by omega) (by omega) (by omega)
+  refine ⟨hf, ?_⟩
+  apply bitsFrom_of_eq_on (fun i _ => hf _ (by omega))
+  simpa [encodeNat_length, Nat.add_assoc] using (bitsFrom_append σ b (encodeNat n) rest hbits).2
+
 lemma unary_step_bounded_aux (B c k d : ℕ) (σ : Store)
     (hck : c ≠ k) (hcd : c ≠ d) (hidx : c ≤ B ∧ k ≤ B ∧ d ≤ B)
     (hc : σ c + 1 ≤ B) (hk : σ k + 1 ≤ B) :

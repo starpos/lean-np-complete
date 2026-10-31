@@ -149,6 +149,20 @@ lemma decodeLiteralValueProgramAt_bound_frame
   exact decodeLiteralValueProgram_correct cursorReg polReg varReg doneReg bound addr l
     rest σ hcp hcv hcd hpv hpd hvd hca hpa hva hda hbound hc hbits
 
+@[construction_api] lemma decodeLiteralValueProgramAt_frame_rest
+    (c p v d lr b : ℕ) (l : Literal) (rest : Bits) (σ : Store)
+    (hc : c < b) (hp : p < b) (hv : v < b) (hd : d < b)
+    (hbits : BitsFrom σ b (encodeLiteral l ++ rest)) :
+    (∀ r, b ≤ r → (decodeLiteralValueProgramAt c p v d lr).eval σ r = σ r) ∧
+      BitsFrom ((decodeLiteralValueProgramAt c p v d lr).eval σ)
+        (b + (encodeLiteral l).length) rest := by
+  have hf : ∀ r, b ≤ r → (decodeLiteralValueProgramAt c p v d lr).eval σ r = σ r := by
+    intro r hr
+    exact (decodeLiteralValueProgramAt_avoids_frame c p v d lr).eval_frame σ
+      ⟨by omega, by omega, by omega, by omega⟩
+  exact ⟨hf, bitsFrom_of_eq_on (fun i _ => hf _ (by omega))
+    (bitsFrom_append σ b (encodeLiteral l) rest hbits).2⟩
+
 /-! ## Clause scanner: `.forN (.reg remainingReg)` plus a bound register -/
 
 def decodeClauseStepAt

@@ -306,9 +306,7 @@ lemma uniformAddrNat_gt_length_done (N : ℕ) :
   simp [uctLengthReg, uctDoneReg]
   omega
 
-lemma encodeLiteral_length_eq (l : Literal) :
-    (encodeLiteral l).length = l.var + 2 := by
-  cases l <;> simp [encodeLiteral, encodeNat_length, Literal.var]
+export NPComplete.SAT (encodeLiteral_length_eq)
 
 lemma encodeThreeClause_length_le (c : ThreeClause) {n : ℕ}
     (h1 : c.l1.var < n) (h2 : c.l2.var < n) (h3 : c.l3.var < n) :

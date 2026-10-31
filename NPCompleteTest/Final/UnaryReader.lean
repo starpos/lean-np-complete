@@ -30,4 +30,14 @@ example {σ : Store} {b : ℕ} {xs ys : Bits} (h : BitsFrom σ b xs)
     (h' : BitsFrom σ (b + xs.length) ys) : BitsFrom σ b (xs ++ ys) :=
   BitsFrom.append h h'
 
+example : BitsFrom ((readUnaryProgAt 0 1 2 3).eval sampleStore) 9 [true, false] :=
+  (readUnaryProgAt_frame_rest (by decide) (by decide) (by decide) sample_bits).2
+
+example (bits : Bits) {B : ℕ} (hB : 1 ≤ B) (hb : bits.length ≤ B) :
+    StoreValuesLe B (bitInputStore bits) := storeValuesLe_bitInputStore bits hB hb
+
+example {S P : ℕ → Prop} {Q : Store → Prop} {p : Program} {σ : Store}
+    (hp : WritesIn S p σ) (hq : ReadsOnly P Q) (h : ∀ r, P r → ¬ S r) (hσ : Q σ) :
+    Q (p.eval σ) := hp.preserves hq h hσ
+
 end NPCompleteTest.UnaryReader
