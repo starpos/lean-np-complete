@@ -63,3 +63,34 @@ example (l : Literal) : (encodeLiteral l).length = l.var + 2 :=
 example (l : Literal) : (encodeLiteral l).length = l.var + 2 :=
   NPComplete.CookLevin.encodeLiteral_length_eq l
 end Encoding
+
+section LiteralReader
+open NPComplete.BoundedWhile NPComplete.RAMToTM NPComplete.CookLevin NPComplete.SAT
+
+example (c p v d lr : ℕ) : ScanFree (decodeLiteralValueProgramAt c p v d lr) :=
+  scanFree_decodeLiteralValueProgramAt c p v d lr
+
+example (c p v d lr : ℕ) : ScanFree (decodeLiteralValueProgramAt c p v d lr) :=
+  NPComplete.CookLevin.scanFree_decodeLiteralValueProgramAt c p v d lr
+
+example (c p v d lr r : ℕ) (σ : Store) (hc : r ≠ c) (hp : r ≠ p)
+    (hv : r ≠ v) (hd : r ≠ d) :
+    (decodeLiteralValueProgramAt c p v d lr).eval σ r = σ r :=
+  decodeLiteralValueProgramAt_frame c p v d lr r σ hc hp hv hd
+
+example (c p v d lr r : ℕ) (σ : Store) (hc : r ≠ c) (hp : r ≠ p)
+    (hv : r ≠ v) (hd : r ≠ d) :
+    (decodeLiteralValueProgramAt c p v d lr).eval σ r = σ r :=
+  NPComplete.CookLevin.decodeLiteralValueProgramAt_frame c p v d lr r σ hc hp hv hd
+
+#check decodeLiteralValueProgramAt_correct
+#check NPComplete.CookLevin.decodeLiteralValueProgramAt_correct
+#check decodeLiteralValueProgramAt_avoids_frame
+#check NPComplete.CookLevin.decodeLiteralValueProgramAt_avoids_frame
+#check decodeLiteralValueProgramAt_bounded
+#check NPComplete.CookLevin.decodeLiteralValueProgramAt_bounded
+#check decodeLiteralValueProgramAt_frame_rest
+#check NPComplete.CookLevin.decodeLiteralValueProgramAt_frame_rest
+#check programBoundedIn_decodeLiteralValueProgramAt_of_bounds
+#check NPComplete.CookLevin.programBoundedIn_decodeLiteralValueProgramAt_of_bounds
+end LiteralReader

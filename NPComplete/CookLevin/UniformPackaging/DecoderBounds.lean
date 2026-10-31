@@ -61,7 +61,7 @@ lemma decodeLiteralValueProgramAt_cursor_le
     simp [σ3, eval_assign, Expr.eval, writeReg_diff _ _ _ _ hcd]
   have hb3 : σ3 boundReg = σ boundReg := by
     simp [σ3, eval_assign, Expr.eval, writeReg_diff _ _ _ _ hbd, hb2]
-  unfold decodeNatProgramAt decodeUnaryProgAt
+  unfold decodeUnaryProgAt
   rw [eval_forN]
   simp only [Expr.eval]
   change (loopEval (decodeUnaryStep cursorReg varReg doneReg) (σ3 boundReg) σ3) cursorReg ≤ _
@@ -146,75 +146,7 @@ lemma programBoundedIn_decodeNatProgramAt_of_bounds
   · have hc := loopEval_decodeUnaryStep_count_le cursorReg countReg doneReg hcc hcountDone m σ
     omega
 
-@[construction_api] lemma programBoundedIn_decodeLiteralValueProgramAt_of_bounds
-    (B cursorReg polReg varReg doneReg boundReg : ℕ) (σ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg)
-    (hB1 : 1 ≤ B) (hσ : StoreValuesLe B σ)
-    (hcursor : σ cursorReg + 1 + σ boundReg ≤ B) :
-    ProgramBoundedIn B σ
-      (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg) := by
-  rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd⟩
-  let σ1 := (Program.assign polReg (.regInd (.reg cursorReg))).eval σ
-  let σr := (Program.assign cursorReg (.add (.reg cursorReg) (.const 1))).eval σ1
-  let σ2 := (Program.assign varReg (.const 0)).eval σr
-  let σ3 := (Program.assign doneReg (.const 0)).eval σ2
-  have hpRead1 : ProgramBoundedIn B σ
-      (.assign polReg (.regInd (.reg cursorReg))) := by
-    refine ⟨hidx.2.1, ?_⟩
-    simp only [ExprBoundedIn, Expr.eval]
-    exact ⟨hidx.1, hσ cursorReg⟩
-  have hcursor1 : σ1 cursorReg = σ cursorReg := by
-    simp [σ1, eval_assign, Expr.eval,
-      writeReg_diff σ polReg _ cursorReg hcp]
-  have hpRead2 : ProgramBoundedIn B σ1
-      (.assign cursorReg (.add (.reg cursorReg) (.const 1))) := by
-    refine ⟨hidx.1, ?_⟩
-    simp only [ExprBoundedIn, Expr.eval]
-    rw [hcursor1]
-    omega
-  have hpRead : ProgramBoundedIn B σ (readBitAdvanceProg cursorReg polReg) := by
-    unfold readBitAdvanceProg
-    exact ⟨hpRead1, hpRead2⟩
-  have hpVar : ProgramBoundedIn B σr (Program.assign varReg (.const 0)) := by
-    simp [ProgramBoundedIn, ExprBoundedIn]
-    omega
-  have hpDone : ProgramBoundedIn B σ2 (Program.assign doneReg (.const 0)) := by
-    simp [ProgramBoundedIn, ExprBoundedIn]
-    omega
-  have h1 : σ1 boundReg = σ boundReg := by
-    simp [σ1, eval_assign, Expr.eval, writeReg_diff σ polReg _ boundReg hbp]
-  have h1r : σr boundReg = σ boundReg := by
-    simp [σr, eval_assign, Expr.eval, writeReg_diff _ cursorReg _ boundReg hbc, h1]
-  have hbound3 : σ3 boundReg = σ boundReg := by
-    simp only [σ3, σ2, eval_assign, Expr.eval]
-    rw [writeReg_diff _ doneReg _ boundReg hbd,
-      writeReg_diff _ varReg _ boundReg hbv, h1r]
-  have hcursor3 : σ3 cursorReg = σ cursorReg + 1 := by
-    simp only [σ3, σ2, σr, eval_assign, Expr.eval]
-    rw [writeReg_diff _ doneReg _ cursorReg hcd,
-      writeReg_diff _ varReg _ cursorReg hcv, writeReg_same]
-    rw [hcursor1]
-  have hpDecode : ProgramBoundedIn B σ3
-      (decodeNatProgramAt cursorReg varReg doneReg boundReg) := by
-    apply programBoundedIn_decodeNatProgramAt_of_bounds cursorReg varReg doneReg boundReg B σ3
-      hcv hcd hvd ⟨hidx.1, hidx.2.2.1, hidx.2.2.2.1, hidx.2.2.2.2⟩
-    · rw [hcursor3, hbound3]
-      omega
-    · rw [hbound3]
-      have hv3 : σ3 varReg = 0 := by
-        simp [σ3, σ2, eval_assign, Expr.eval, writeReg, hvd]
-      rw [hv3]
-      omega
-  unfold decodeLiteralValueProgramAt
-  refine ⟨hpRead, ?_⟩
-  rw [show (readBitAdvanceProg cursorReg polReg).eval σ = σr by
-    simp [readBitAdvanceProg, σr, σ1, eval_seq]]
-  refine ⟨hpVar, ?_⟩
-  rw [show (Program.assign varReg (.const 0)).eval σr = σ2 from rfl]
-  exact ⟨hpDone, hpDecode⟩
+export NPComplete.SAT (programBoundedIn_decodeLiteralValueProgramAt_of_bounds)
 
 lemma programBoundedIn_decodeLiteralValueProgramAt_raw_post_bounds
     (K B cursorReg polReg varReg doneReg boundReg : ℕ) (σ : Store)

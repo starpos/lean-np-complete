@@ -262,7 +262,7 @@ resource and store obligations:
 - `RAMToTM.BitsFrom` describes bits stored from a given cell, useful for verifier and producer
   correctness proofs.
 - `RAMToTM.readUnaryProgAt` reads unary data with initialized counters; `decodeUnaryProgAt` is the
-  lower-level reader. `CookLevin.decodeLiteralValueProgramAt` reads an encoded literal's value.
+  lower-level reader. `SAT.decodeLiteralValueProgramAt` reads an encoded literal's value.
 - `RAMToTM.writeUnaryProgAt` writes a unary encoding at a cursor, with correctness, frame and resource bounds.
 - `RAMToTM.forwardCopyProg` moves an input region to a higher, non-overlapping destination while
   preserving the source, providing workspace for a verifier or producer.

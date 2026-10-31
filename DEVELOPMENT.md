@@ -34,11 +34,11 @@ v0.x compatibility promises associated with `stable_api` and `construction_api` 
   expanding output could overwrite unread input, first use `RAMToTM.forwardCopyProg` to relocate
   the input above the output's upper bound, satisfying its non-overlap and layout conditions.
 - **Readers, writers, and frames.** `RAMToTM.readUnaryProgAt` reads unary data and
-  `CookLevin.decodeLiteralValueProgramAt` reads a literal value; `RAMToTM.writeUnaryProgAt` writes
+  `SAT.decodeLiteralValueProgramAt` reads a literal value; `RAMToTM.writeUnaryProgAt` writes
   a unary encoding. Use `RAMToTM.BitsFrom` to describe bit contents in cells,
   `BoundedWhile.Program.Avoids` for a statically protected region, and `BoundedWhile.WritesIn` for
   store-dependent write targets. The reader lemmas `RAMToTM.readUnaryProgAt_frame_rest` and
-  `CookLevin.decodeLiteralValueProgramAt_frame_rest` provide both a frame for the reader region
+  `SAT.decodeLiteralValueProgramAt_frame_rest` provide both a frame for the reader region
   and preservation of the remaining input.
 - **Use value equalities for loop flags.** For a 0/1 flag, an invariant `σ r = 1 ↔ P` can force
   each step to handle both a product update and an equivalence at once. Instead, write

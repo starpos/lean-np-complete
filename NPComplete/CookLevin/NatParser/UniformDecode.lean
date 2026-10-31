@@ -75,93 +75,9 @@ lemma decodeNatProgramAt_bound_frame
       σ boundReg :=
   decodeNatProgramAt_frame cursorReg countReg doneReg boundReg boundReg σ hbc hbv hbd
 
-@[construction_api] def decodeLiteralValueProgramAt
-    (cursorReg polReg varReg doneReg boundReg : ℕ) : Program :=
-  .seq (readBitAdvanceProg cursorReg polReg)
-  <| .seq (.assign varReg (.const 0))
-      <| .seq (.assign doneReg (.const 0))
-          (decodeNatProgramAt cursorReg varReg doneReg boundReg)
-
-lemma decodeLiteralValueProgramAt_eq
-    (cursorReg polReg varReg doneReg boundReg bound : ℕ) (σ : Store)
-    (hb : σ boundReg = bound)
-    (hbc : boundReg ≠ cursorReg) (hbp : boundReg ≠ polReg)
-    (hbv : boundReg ≠ varReg) (hbd : boundReg ≠ doneReg) :
-    (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ =
-      (decodeLiteralValueProgram cursorReg polReg varReg doneReg bound).eval σ := by
-  unfold decodeLiteralValueProgramAt decodeLiteralValueProgram
-  rw [eval_seq, eval_seq, eval_seq, eval_seq, eval_seq, eval_seq]
-  set σ1 := (readBitAdvanceProg cursorReg polReg).eval σ
-  have hσ1 : σ1 boundReg = bound :=
-    (readBitAdvanceProg_frame cursorReg polReg boundReg σ hbc hbp).trans hb
-  set σ2 := (Program.assign varReg (.const 0)).eval σ1
-  have hσ2 : σ2 boundReg = bound := by
-    simp only [σ2, eval_assign, Expr.eval]
-    exact (writeReg_diff σ1 varReg 0 boundReg (hbv)).trans hσ1
-  set σ3 := (Program.assign doneReg (.const 0)).eval σ2
-  have hσ3 : σ3 boundReg = bound := by
-    simp only [σ3, eval_assign, Expr.eval]
-    exact (writeReg_diff σ2 doneReg 0 boundReg (hbd)).trans hσ2
-  exact decodeNatProgramAt_eq cursorReg varReg doneReg boundReg bound σ3 hσ3
-
-@[construction_api] lemma decodeLiteralValueProgramAt_avoids_frame
-    (cursorReg polReg varReg doneReg boundReg : ℕ) :
-    (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).Avoids
-      (fun r => r ≠ cursorReg ∧ r ≠ polReg ∧ r ≠ varReg ∧ r ≠ doneReg) := by
-  simp [Program.Avoids, decodeLiteralValueProgramAt, decodeNatProgramAt,
-    decodeUnaryProgAt, decodeUnaryStep, readBitAdvanceProg]
-
-lemma decodeLiteralValueProgramAt_bound_frame
-    (cursorReg polReg varReg doneReg boundReg : ℕ) (σ : Store)
-    (hbc : boundReg ≠ cursorReg) (hbp : boundReg ≠ polReg)
-    (hbv : boundReg ≠ varReg) (hbd : boundReg ≠ doneReg) :
-    (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ
-      boundReg = σ boundReg := by
-  exact (decodeLiteralValueProgramAt_avoids_frame cursorReg polReg varReg doneReg boundReg).eval_frame
-    σ ⟨hbc, hbp, hbv, hbd⟩
-
-@[construction_api] lemma decodeLiteralValueProgramAt_correct
-    (cursorReg polReg varReg doneReg boundReg bound addr : ℕ) (l : Literal)
-    (rest : Bits) (σ : Store)
-    (hcp : cursorReg ≠ polReg) (hcv : cursorReg ≠ varReg)
-    (hcd : cursorReg ≠ doneReg) (hpv : polReg ≠ varReg)
-    (hpd : polReg ≠ doneReg) (hvd : varReg ≠ doneReg)
-    (hbc : boundReg ≠ cursorReg) (hbp : boundReg ≠ polReg)
-    (hbv : boundReg ≠ varReg) (hbd : boundReg ≠ doneReg)
-    (hca : cursorReg < addr) (hpa : polReg < addr)
-    (hva : varReg < addr) (hda : doneReg < addr)
-    (hbound : l.var + 1 ≤ bound) (hb : σ boundReg = bound)
-    (hc : σ cursorReg = addr)
-    (hbits : BitsFrom σ addr (encodeLiteral l ++ rest)) :
-    (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ
-        cursorReg = addr + l.var + 2 ∧
-    (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ
-        polReg = (match l with | .pos _ => 0 | .neg _ => 1) ∧
-    (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ
-        varReg = l.var ∧
-    (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ
-        doneReg = 1 ∧
-    (∀ r, r ≠ cursorReg → r ≠ polReg → r ≠ varReg → r ≠ doneReg →
-      (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ r =
-        σ r) := by
-  rw [decodeLiteralValueProgramAt_eq cursorReg polReg varReg doneReg boundReg bound σ
-    hb hbc hbp hbv hbd]
-  exact decodeLiteralValueProgram_correct cursorReg polReg varReg doneReg bound addr l
-    rest σ hcp hcv hcd hpv hpd hvd hca hpa hva hda hbound hc hbits
-
-@[construction_api] lemma decodeLiteralValueProgramAt_frame_rest
-    (c p v d lr b : ℕ) (l : Literal) (rest : Bits) (σ : Store)
-    (hc : c < b) (hp : p < b) (hv : v < b) (hd : d < b)
-    (hbits : BitsFrom σ b (encodeLiteral l ++ rest)) :
-    (∀ r, b ≤ r → (decodeLiteralValueProgramAt c p v d lr).eval σ r = σ r) ∧
-      BitsFrom ((decodeLiteralValueProgramAt c p v d lr).eval σ)
-        (b + (encodeLiteral l).length) rest := by
-  have hf : ∀ r, b ≤ r → (decodeLiteralValueProgramAt c p v d lr).eval σ r = σ r := by
-    intro r hr
-    exact (decodeLiteralValueProgramAt_avoids_frame c p v d lr).eval_frame σ
-      ⟨by omega, by omega, by omega, by omega⟩
-  exact ⟨hf, bitsFrom_of_eq_on (fun i _ => hf _ (by omega))
-    (bitsFrom_append σ b (encodeLiteral l) rest hbits).2⟩
+export NPComplete.SAT (decodeLiteralValueProgramAt decodeLiteralValueProgramAt_eq
+  decodeLiteralValueProgramAt_avoids_frame decodeLiteralValueProgramAt_bound_frame
+  decodeLiteralValueProgramAt_correct decodeLiteralValueProgramAt_frame_rest)
 
 /-! ## Clause scanner: `.forN (.reg remainingReg)` plus a bound register -/
 
@@ -195,7 +111,7 @@ lemma decodeClauseStepAt_avoids_frame
       (fun r => r ≠ cursorReg ∧ r ≠ polReg ∧ r ≠ varReg ∧ r ≠ doneReg ∧
         r ≠ remainingReg ∧ r ≠ maxReg) := by
   simp [Program.Avoids, decodeClauseStepAt, decodeLiteralValueProgramAt,
-    decodeNatProgramAt, decodeUnaryProgAt, decodeUnaryStep, readBitAdvanceProg]
+    decodeUnaryProgAt, decodeUnaryStep, readBitAdvanceProg]
 
 lemma decodeClauseStepAt_bound_frame
     (cursorReg polReg varReg doneReg remainingReg maxReg boundReg : ℕ)

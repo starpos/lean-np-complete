@@ -64,7 +64,7 @@ lemma decodeClauseEvalStepAt_avoids_frame
       (fun r => r ≠ cursorReg ∧ r ≠ polReg ∧ r ≠ varReg ∧ r ≠ doneReg ∧
         r ≠ remainingReg ∧ r ≠ bitReg ∧ r ≠ valReg ∧ r ≠ satReg) := by
   simp [Program.Avoids, decodeClauseEvalStepAt, decodeLiteralValueProgramAt,
-    decodeNatProgramAt, decodeUnaryProgAt, decodeUnaryStep, readBitAdvanceProg,
+    decodeUnaryProgAt, decodeUnaryStep, readBitAdvanceProg,
     readAssignBitProg, literalValueProg, orIntoProg]
 
 /-- `decodeClauseEvalStepAt` preserves `boundReg` if it differs from every register

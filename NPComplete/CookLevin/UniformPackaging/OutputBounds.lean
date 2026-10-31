@@ -104,19 +104,14 @@ lemma scanFree_decodeNatProgramAt (cursorReg countReg doneReg boundReg : ℕ) :
   simpa [decodeNatProgramAt] using
     scanFree_decodeUnaryProgAt cursorReg countReg doneReg (.reg boundReg)
 
-@[construction_api] lemma scanFree_decodeLiteralValueProgramAt
-    (cursorReg polReg varReg doneReg boundReg : ℕ) :
-    ScanFree (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg
-      boundReg) := by
-  simp [ScanFree, decodeLiteralValueProgramAt, readBitAdvanceProg,
-    decodeNatProgramAt, decodeUnaryProgAt, decodeUnaryStep]
+export NPComplete.SAT (scanFree_decodeLiteralValueProgramAt)
 
 lemma scanFree_decodeClauseStepAt
     (cursorReg polReg varReg doneReg remainingReg maxReg boundReg : ℕ) :
     ScanFree (decodeClauseStepAt cursorReg polReg varReg doneReg remainingReg
       maxReg boundReg) := by
   simp [ScanFree, decodeClauseStepAt, decodeLiteralValueProgramAt,
-    readBitAdvanceProg, decodeNatProgramAt, decodeUnaryProgAt, decodeUnaryStep]
+    readBitAdvanceProg, decodeUnaryProgAt, decodeUnaryStep]
 
 lemma scanFree_decodeClauseWithLengthPrefixAt
     (cursorReg doneReg remainingReg lengthReg boundReg : ℕ) :

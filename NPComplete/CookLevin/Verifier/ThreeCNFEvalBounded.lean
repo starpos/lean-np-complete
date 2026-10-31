@@ -177,7 +177,7 @@ lemma decodeThreeCNFEvalClauseStepAt_avoids_frame
       (fun r => r ≠ cursorReg ∧ r ≠ polReg ∧ r ≠ varReg ∧ r ≠ doneReg ∧
         r ≠ remainingReg ∧ r ≠ satReg ∧ r ≠ bitReg ∧ r ≠ valReg ∧ r ≠ cnfReg) := by
   simp [Program.Avoids, decodeThreeCNFEvalClauseStepAt, decodeThreeClauseEvalStepAt,
-    andIntoProg, decodeClauseEvalStepAt, decodeLiteralValueProgramAt, decodeNatProgramAt,
+    andIntoProg, decodeClauseEvalStepAt, decodeLiteralValueProgramAt,
     decodeUnaryProgAt, decodeUnaryStep, readBitAdvanceProg, readAssignBitProg,
     literalValueProg, orIntoProg]
 
