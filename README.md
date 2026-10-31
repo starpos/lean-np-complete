@@ -264,6 +264,7 @@ resource and store obligations:
 - `RAMToTM.readUnaryProgAt` reads unary data with initialized counters; `decodeUnaryProgAt` is the
   lower-level reader. `SAT.decodeLiteralValueProgramAt` reads an encoded literal's value.
 - `RAMToTM.writeUnaryProgAt` writes a unary encoding at a cursor, with correctness, frame and resource bounds.
+- `RAMToTM.periodicCounterProg` advances a counter and a bounded phase, with correctness, frame and resource contracts.
 - `RAMToTM.forwardCopyProg` moves an input region to a higher, non-overlapping destination while
   preserving the source, providing workspace for a verifier or producer.
 

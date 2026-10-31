@@ -21,6 +21,7 @@ public import NPComplete.RAMToTM.Generic.Api.BoundedInMono
 public import NPComplete.RAMToTM.Generic.Api.BoundedSimp
 public import NPComplete.RAMToTM.Generic.ForwardCopy
 public import NPComplete.RAMToTM.Generic.UnaryWriter
+public import NPComplete.RAMToTM.Generic.PeriodicCounter
 public import NPComplete.BoundedWhile.Frame
 public import NPComplete.BoundedWhile.WritesIn
 
