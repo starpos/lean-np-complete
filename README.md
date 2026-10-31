@@ -288,6 +288,8 @@ Reductions are stated with the TM0 `PolyTimeReduction`; the library has no separ
 reduction structure. Build one from a producer with `PolyTimeReduction.of_forwardBitProducer`;
 a TM2 computation with Boolean output connects to TM0 via `TM2ComputableInPolyTime.toTM0`.
 
+See [DEVELOPMENT.md](DEVELOPMENT.md) for practical notes on writing verifiers and reduction producers.
+
 ### External usage example
 
 The example body below matches the code between the markers in

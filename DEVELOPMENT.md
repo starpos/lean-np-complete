@@ -1,8 +1,8 @@
 # Development conventions
 
-This file describes the development conventions used in `NPComplete`. It is meant for people who
-fork the library and want their changes to stay consistent with the existing code. See the README
-for the terms on which the repository can be forked.
+This file provides practical notes for users constructing verifiers and reduction producers, as well
+as development conventions for people who fork `NPComplete` and want their changes to stay
+consistent with the existing code. See the README for the terms on which the repository can be forked.
 
 ## Setting up
 
@@ -19,6 +19,48 @@ with. Do not run `lake update` as part of routine setup: it re-resolves the depe
 change the manifest. Changing the Lean or Mathlib version is a change of its own: the toolchain and
 the dependency revisions in `lean-toolchain`, `lakefile.toml`, and `lake-manifest.json` move
 together.
+
+## Writing verifiers and reduction producers
+
+The following notes summarize proof techniques useful in downstream developments. Names are relative
+to `NPComplete`; see [README Section 6](README.md#6-compatibility-and-maintenance-policy) for the
+v0.x compatibility promises associated with `stable_api` and `construction_api` declarations.
+
+- **Entry points.** For an `InNP` verifier, use `CookLevin.pairPreludeDecider` for the bounded
+  verifier body and then `CookLevin.InNP.of_bounded_while_verifier`. For a reduction producer, use
+  `RAMToTM.BoundedWhileDecider.ofProgramBoundedIn`, then
+  `CookLevin.PolyTimeReduction.of_forwardBitProducer`, and finally `CookLevin.NPHard.of_threeSAT`
+  or `CookLevin.NPComplete.of_threeSAT`. The producer writes its output from a constant base; if an
+  expanding output could overwrite unread input, first use `RAMToTM.forwardCopyProg` to relocate
+  the input above the output's upper bound, satisfying its non-overlap and layout conditions.
+- **Readers, writers, and frames.** `RAMToTM.readUnaryProgAt` reads unary data and
+  `CookLevin.decodeLiteralValueProgramAt` reads a literal value; `RAMToTM.writeUnaryProgAt` writes
+  a unary encoding. Use `RAMToTM.BitsFrom` to describe bit contents in cells,
+  `BoundedWhile.Program.Avoids` for a statically protected region, and `BoundedWhile.WritesIn` for
+  store-dependent write targets. The reader lemmas `RAMToTM.readUnaryProgAt_frame_rest` and
+  `CookLevin.decodeLiteralValueProgramAt_frame_rest` provide both a frame for the reader region
+  and preservation of the remaining input.
+- **Use value equalities for loop flags.** For a 0/1 flag, an invariant `σ r = 1 ↔ P` can force
+  each step to handle both a product update and an equivalence at once. Instead, write
+  `σ r = if b then 1 else 0`, where `b` is a pure Boolean function of the loop state. Isolate the
+  arithmetic update in a small lemma proved by cases on the Boolean inputs.
+- **Fix the protected region at loop entry.** If the frame covers only cells above the current
+  cursor, advancing the cursor loses the preservation fact for cells already read, making the
+  induction difficult to compose. Carry the original region start as a separate invariant
+  parameter and state the frame relative to that fixed start.
+- **Include value bounds in resource invariants.** A correctness invariant alone may not bound
+  an aggregate register, so record facts such as `σ ok ≤ 1` to establish `ProgramBoundedIn`.
+  Mathlib's `ite_le_one` proves `(if p then 1 else 0 : ℕ) ≤ 1` from bounds on both branches.
+  For loops use `RAMToTM.programBoundedIn_forN_of_indexed`, and decompose body obligations with
+  the syntax-specific `programBoundedIn_*_iff` lemmas.
+- **Bound both `ifNZ` branches.** `ProgramBoundedIn` requires bounds for both branches, including
+  addresses in the branch not executed; `WritesIn` instead follows the branch actually executed.
+  Design the program so that write targets in both branches fit a common bound.
+- **Flatten row-major matrices directly.** Instead of concatenating a `List.ofFn` for each row,
+  define one `List.ofFn` of length `n * n`, mapping index `k` to the entry at row `k.val / n` and
+  column `k.val % n`. Then `List.getElem_ofFn` exposes the entry at `i * n + j` directly; prove the
+  index is in range and simplify division and remainder using `i < n` and `j < n`. Mathlib's
+  `finProdFinEquiv` and `List.ofFn_mul` are also useful for relating flat and nested presentations.
 
 ## Rules for the library
 
