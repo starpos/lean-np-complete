@@ -18,6 +18,7 @@ public import NPComplete.RAMToTM.PromiseDecidability
 public import NPComplete.RAMToTM.ThreeSat.Pipeline.ThreeSatDecodeBounds
 public import NPComplete.RAMToTM.Generic.Api.OperandBoundOfBounded
 public import NPComplete.RAMToTM.Generic.Api.BoundedInMono
+public import NPComplete.RAMToTM.Generic.Api.BoundedSimp
 public import NPComplete.RAMToTM.Generic.ForwardCopy
 public import NPComplete.RAMToTM.Generic.UnaryWriter
 public import NPComplete.BoundedWhile.Frame

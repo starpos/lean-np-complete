@@ -258,7 +258,7 @@ resource and store obligations:
 - `RAMToTM.exists_cost_le_of_programBoundedIn` bounds a scan-free program's cost polynomially in
   its value bound, including for intermediate stores.
 - The syntax-specific `ProgramBoundedIn` lemmas decompose resource proofs; in particular,
-  `RAMToTM.programBoundedIn_forN_of_indexed` uses an indexed invariant for a loop body.
+  `RAMToTM.programBoundedIn_forN_of_indexed` uses an indexed invariant for a loop body. The explicit `bounded_simp [...]` tactic simplifies straight-line resource obligations.
 - `RAMToTM.BitsFrom` describes bits stored from a given cell, useful for verifier and producer
   correctness proofs.
 - `RAMToTM.readUnaryProgAt` reads unary data with initialized counters; `decodeUnaryProgAt` is the

@@ -52,7 +52,9 @@ v0.x compatibility promises associated with `stable_api` and `construction_api` 
   an aggregate register, so record facts such as `σ ok ≤ 1` to establish `ProgramBoundedIn`.
   Mathlib's `ite_le_one` proves `(if p then 1 else 0 : ℕ) ≤ 1` from bounds on both branches.
   For loops use `RAMToTM.programBoundedIn_forN_of_indexed`, and decompose body obligations with
-  the syntax-specific `programBoundedIn_*_iff` lemmas.
+  the syntax-specific `programBoundedIn_*_iff` lemmas. The explicit `bounded_simp [...]` macro
+  simplifies straight-line obligations without expanding loops. It is available to clients like a
+  construction-layer tool, but its behavior may change under the compatibility policy in README §6.
 - **Bound both `ifNZ` branches.** `ProgramBoundedIn` requires bounds for both branches, including
   addresses in the branch not executed; `WritesIn` instead follows the branch actually executed.
   Design the program so that write targets in both branches fit a common bound.
