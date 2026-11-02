@@ -460,6 +460,10 @@ with `rev`.
 | --- | --- | --- |
 | `v0.4.0` | `v4.35.0` | `v4.35.0` |
 
+Version 0.4.0 adds construction entry points and moves some declarations to namespaces matching
+their subjects. Their former internal names remain as aliases, but internal names are outside the
+compatibility promise.
+
 **Meaning of stable definitions.** For a stable recursive definition, the equation lemmas (one per
 constructor) are stable and fix its meaning. The unfolded form that `simp [f]` or similar tactics
 expose is not part of the contract; state the dependence on the meaning through the equation
