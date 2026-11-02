@@ -440,14 +440,25 @@ declarations. You may import a leaf module directly, but you bear the risk that 
 | `@[construction_api]` | You may use it, but it may change. A change raises the minor version. |
 | Untagged (internal) | Changed without notice. You may use it, but you bear the risk that it changes silently. |
 
-**Versions.** The library starts at 0.x (`lakefile.toml`). While the major version is 0, a
-breaking change to a stable declaration also raises the minor version. From 1.0 on, a breaking
-change to a stable declaration raises the major version, and a change to a construction
-declaration raises the minor version.
+**Versions.** While the major version is 0, a breaking change to a stable declaration raises the
+minor version; from 1.0 on, it raises the major version. Changes or additions to construction
+API declarations raise the minor version. A patch release leaves the toolchain and the statements
+of all tagged declarations unchanged and adds no tagged declarations; it may rewrite proofs,
+correct documentation, or change internal declarations.
 
-Version 0.4.0 adds construction entry points and moves some declarations to namespaces matching
-their subjects. Their former internal names remain as aliases, but internal names are outside the
-compatibility promise.
+A change to the Lean version (including a patch version) or the Mathlib revision raises the minor
+version, both before and after 1.0. Such a release contains no other changes except those required
+by the Mathlib update; API changes or additions are released separately without a toolchain change.
+This matters because a Lake workspace uses only one revision of each package, so a toolchain update
+can break downstream builds.
+
+Fixes for an older release series use patch versions only and are made available as needed; for
+example, `v0.4.1` may be released after `v0.5.0`. Release order does not affect users who pin a tag
+with `rev`.
+
+| NPComplete version | Lean version | Mathlib revision |
+| --- | --- | --- |
+| `v0.4.0` | `v4.35.0` | `v4.35.0` |
 
 **Meaning of stable definitions.** For a stable recursive definition, the equation lemmas (one per
 constructor) are stable and fix its meaning. The unfolded form that `simp [f]` or similar tactics
