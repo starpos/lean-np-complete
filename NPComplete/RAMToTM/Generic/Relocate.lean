@@ -340,19 +340,13 @@ lemma relocateStep_programBoundedIn (τ : Store) (N C t B : ℕ)
     (hgap : N + relocateControlGap ≤ C) (ht : t < N)
     (hB : C + N ≤ B) :
     ProgramBoundedIn B τ relocateStep := by
-  have hB' : N + 8 + N ≤ B := by
-    have := hB
-    simp [relocateControlGap] at hgap
-    omega
+  have hgap8 : N + 8 ≤ C := by simp [relocateControlGap] at hgap ⊢; omega
   have hN1 : N + relocateSrcJ ≤ B := by simp [relocateSrcJ]; omega
   have hN2 : N + relocateDstJ ≤ B := by simp [relocateDstJ]; omega
   have hs' : τ (N + 1) = 1 + t := by simpa [relocateSrcJ] using hs
   have hd' : τ (N + 2) = C + t := by simpa [relocateDstJ] using hd
-  have hgap8 : N + 8 ≤ C := by simp [relocateControlGap] at hgap ⊢; omega
-  have heDst : ExprBoundedIn B τ (relocateCtlCell relocateDstJ) := by
-    exact relocateCtlCell_exprBoundedIn τ N B relocateDstJ h0 hN2
-  have heSrc : ExprBoundedIn B τ (relocateCtlCell relocateSrcJ) := by
-    exact relocateCtlCell_exprBoundedIn τ N B relocateSrcJ h0 hN1
+  have heDst := relocateCtlCell_exprBoundedIn τ N B relocateDstJ h0 hN2
+  have heSrc := relocateCtlCell_exprBoundedIn τ N B relocateSrcJ h0 hN1
   have hp1 : ProgramBoundedIn B τ
       (Program.assignInd (relocateCtlCell relocateDstJ)
         (.regInd (relocateCtlCell relocateSrcJ))) := by
@@ -360,72 +354,46 @@ lemma relocateStep_programBoundedIn (τ : Store) (N C t B : ℕ)
       ExprBoundedIn B τ (.regInd (relocateCtlCell relocateSrcJ)) ∧
       (relocateCtlCell relocateDstJ).eval τ ≤ B
     refine ⟨heDst, ⟨heSrc, ?_⟩, ?_⟩
-    · simp [relocateCtlCell_eval, relocateSrcJ, h0, hs']
-      omega
-    · simp [relocateCtlCell_eval, relocateDstJ, h0, hd']
-      omega
+    · simp [relocateCtlCell_eval, relocateSrcJ, h0, hs']; omega
+    · simp [relocateCtlCell_eval, relocateDstJ, h0, hd']; omega
   let τ1 := (Program.assignInd (relocateCtlCell relocateDstJ)
     (.regInd (relocateCtlCell relocateSrcJ))).eval τ
   have hp1_eval : τ1 = writeReg τ (C + t) (τ (1 + t)) := by
     funext r
     simp [τ1, relocateCtlCell_eval, Expr.eval, h0]
     rw [hd, hs]
-  have h01 : τ1 0 = N := by
-    rw [hp1_eval, writeReg_diff τ (C + t) (τ (1 + t)) 0 (by omega), h0]
+  have hframe : ∀ r, r < N + 8 → τ1 r = τ r := by
+    intro r hr
+    rw [hp1_eval]
+    exact writeReg_diff _ _ _ _ (by omega)
+  have h01 : τ1 0 = N := by simp (disch := omega) [hframe, h0]
   have hs1 : τ1 (N + relocateSrcJ) = 1 + t := by
-    have hne : N + relocateSrcJ ≠ C + t := by simp [relocateSrcJ]; omega
-    rw [hp1_eval, writeReg_diff τ (C + t) (τ (1 + t)) (N + relocateSrcJ) hne]
-    simpa [relocateSrcJ] using hs
+    simp (disch := omega) [hframe, relocateSrcJ, hs']
   have hd1 : τ1 (N + relocateDstJ) = C + t := by
-    have hne : N + relocateDstJ ≠ C + t := by simp [relocateDstJ]; omega
-    rw [hp1_eval, writeReg_diff τ (C + t) (τ (1 + t)) (N + relocateDstJ) hne]
-    exact hd
+    simp (disch := omega) [hframe, relocateDstJ, hd']
   have heIncSrc : ExprBoundedIn B τ1
       (.add (relocateCtlCell relocateSrcJ) (.const 1)) := by
     refine ⟨relocateCtlCell_exprBoundedIn τ1 N B relocateSrcJ h01 hN1, ?_, ?_⟩
-    · simp [ExprBoundedIn]
-      omega
+    · simp [ExprBoundedIn]; omega
     · have hs1' : τ1 (N + 1) = 1 + t := by simpa [relocateSrcJ] using hs1
-      simp [relocateCtlCell_eval, relocateSrcJ, Expr.eval, h01, hs1']
-      omega
+      simp [relocateCtlCell_eval, relocateSrcJ, Expr.eval, h01, hs1']; omega
   have hp2 := relocateCtlAssign_programBoundedIn τ1 N B relocateSrcJ
     (.add (relocateCtlCell relocateSrcJ) (.const 1)) h01 heIncSrc hN1
   let τ2 := (relocateCtlAssign relocateSrcJ
     (.add (relocateCtlCell relocateSrcJ) (.const 1))).eval τ1
-  have hp2_eval : τ2 (τ1 0 + relocateSrcJ) =
-      (Expr.add (relocateCtlCell relocateSrcJ) (.const 1)).eval τ1 := by
-    dsimp [τ2]
-    exact relocateCtlAssign_eval_same relocateSrcJ
-      (Expr.add (relocateCtlCell relocateSrcJ) (.const 1)) τ1
   have h02 : τ2 0 = N := by
-    dsimp [τ2]
-    have he := relocateCtlAssign_eval_diff relocateSrcJ
-      (.add (relocateCtlCell relocateSrcJ) (.const 1)) τ1 0
-      (by simp [h01, relocateSrcJ])
-    simpa [h01] using he.trans h01
-  have hs2 : τ2 (N + relocateSrcJ) = 2 + t := by
-    dsimp [τ2]
-    rw [show N + relocateSrcJ = τ1 0 + relocateSrcJ by simp [h01, relocateSrcJ]]
-    rw [relocateCtlAssign_eval_same relocateSrcJ
-      (Expr.add (relocateCtlCell relocateSrcJ) (.const 1)) τ1]
-    have hs1' : τ1 (N + 1) = 1 + t := by simpa [relocateSrcJ] using hs1
-    simp [relocateCtlCell_eval, relocateSrcJ, Expr.eval, h01, hs1']
-    omega
+    simp [τ2, relocateCtlAssign, eval_assignInd, relocateCtlAddr, Expr.eval,
+      relocateSrcJ, writeReg, h01]
   have hd2 : τ2 (N + relocateDstJ) = C + t := by
-    dsimp [τ2]
-    have hne : N + relocateDstJ ≠ τ1 0 + relocateSrcJ := by
-      simp [h01, relocateSrcJ, relocateDstJ]
-    rw [relocateCtlAssign_eval_diff relocateSrcJ
-      (Expr.add (relocateCtlCell relocateSrcJ) (.const 1)) τ1 (N + relocateDstJ) hne]
-    exact hd1
+    simp [τ2, relocateCtlAssign, eval_assignInd, relocateCtlAddr, Expr.eval,
+      h01, relocateSrcJ, relocateDstJ, writeReg]
+    simpa [relocateDstJ] using hd1
   have heIncDst : ExprBoundedIn B τ2
       (.add (relocateCtlCell relocateDstJ) (.const 1)) := by
     refine ⟨relocateCtlCell_exprBoundedIn τ2 N B relocateDstJ h02 hN2, ?_, ?_⟩
-    · simp [ExprBoundedIn]
-      omega
+    · simp [ExprBoundedIn]; omega
     · have hd2' : τ2 (N + 2) = C + t := by simpa [relocateDstJ] using hd2
-      simp [relocateCtlCell_eval, relocateDstJ, h02, hd2', Expr.eval]
-      omega
+      simp [relocateCtlCell_eval, relocateDstJ, h02, hd2', Expr.eval]; omega
   have hp3 := relocateCtlAssign_programBoundedIn τ2 N B relocateDstJ
     (.add (relocateCtlCell relocateDstJ) (.const 1)) h02 heIncDst hN2
   unfold relocateStep

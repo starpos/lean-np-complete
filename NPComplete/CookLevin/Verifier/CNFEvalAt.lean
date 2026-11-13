@@ -224,9 +224,9 @@ lemma decodeCNFEvalProgramAt_eval
   have hσ1wbase : σ1 wBaseReg = wBase :=
     (hσ1frame wBaseReg houtw.symm).trans ((hσ0frame wBaseReg hwd).trans hwbase)
   have hbits1 : BitsFrom σ1 addr (encodeList encodeClause cs ++ rest) := by
+    apply bitsFrom_of_eq_on _ hbits
     intro i hi
     rw [hσ1frame _ (by omega), hσ0frame _ (by omega)]
-    exact hbits i hi
   obtain ⟨hcur2, hout2, hdone2, hframe2⟩ := decodeNatProgramAt_encodeList_length_append
     encodeClause cursorReg outerReg doneReg boundReg bound addr 0 cs rest σ1
     houtc.symm hcd houtd hbound hσ1bound hbelow.1
@@ -239,19 +239,12 @@ lemma decodeCNFEvalProgramAt_eval
   have hσ2sat0 : σ2 cnfReg = 1 := (hframe2 cnfReg hkc houtk.symm hkd).trans hσ1sat0
   have hσ2wbase : σ2 wBaseReg = wBase := (hframe2 wBaseReg hwc houtw.symm hwd).trans hσ1wbase
   have hbits2 : BitsFrom σ2 (addr + cs.length + 1) ((cs.map encodeClause).flatten ++ rest) := by
+    apply bitsFrom_of_eq_on _ (by
+      simpa [encodeList, List.append_assoc, encodeNat_length, Nat.add_assoc] using
+        (bitsFrom_append σ1 addr (encodeNat cs.length) ((cs.map encodeClause).flatten ++ rest)
+          (by simpa [encodeList, List.append_assoc] using hbits1)).2)
     intro i hi
-    have hfr := hframe2 (addr + cs.length + 1 + i) (by omega) (by omega) (by omega)
-    rw [hfr]
-    obtain ⟨_, htail⟩ := bitsFrom_append σ1 addr (encodeNat cs.length)
-      ((cs.map encodeClause).flatten ++ rest) (by
-        have hshape : encodeList encodeClause cs ++ rest =
-            encodeNat cs.length ++ ((cs.map encodeClause).flatten ++ rest) := by
-          simp [encodeList, List.append_assoc]
-        rw [← hshape]; exact hbits1)
-    have heq : addr + cs.length + 1 + i = addr + (encodeNat cs.length).length + i := by
-      rw [encodeNat_length]; omega
-    rw [heq]
-    exact htail i hi
+    exact hframe2 _ (by omega) (by omega) (by omega)
   have hwbits2 : ∀ c ∈ cs, ∀ l ∈ c.lits,
       σ2 (wBase + l.var) = if w.getD l.var false then 1 else 0 := by
     intro c hc' l hl
