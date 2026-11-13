@@ -9,7 +9,7 @@ and TM2.
 
 ### 1.1 Requirements and building
 
-The Lake package name is `np-complete` (version `0.4.0`). It is built with Lean `v4.35.0` and
+The Lake package name is `np-complete` (version `0.5.0`). It is built with Lean `v4.35.0` and
 depends only on Mathlib `v4.35.0` (`lakefile.toml`).
 
 Install [elan](https://github.com/leanprover/elan), Lean's toolchain manager; the `lean-toolchain`
@@ -35,20 +35,20 @@ checks.
 ### 1.2 Using the library from another package
 
 Add it to the `lakefile.toml` of your package. The Lake package name is `np-complete`. Pin `rev` to
-a release tag (here `v0.4.0`) for reproducible builds:
+a release tag (here `v0.5.0`) for reproducible builds:
 
 ```toml
 [[require]]
 name = "np-complete"
 git = "https://github.com/starpos/lean-np-complete.git"
-rev = "v0.4.0"
+rev = "v0.5.0"
 ```
 
 The equivalent `lakefile.lean` entry is:
 
 ```lean
 require «np-complete» from git
-  "https://github.com/starpos/lean-np-complete.git" @ "v0.4.0"
+  "https://github.com/starpos/lean-np-complete.git" @ "v0.5.0"
 ```
 
 Then run `lake update np-complete` and `import NPComplete` in your modules. Running `lake exe cache
@@ -118,7 +118,8 @@ class theorems.
   (`InP.respects_enc`, `InNP.respects_enc`). Read such a language as a language on the
   equivalence classes of `enc`. The encoders `encodeNat`, `encodeList` (for element encoders
   that decode uniquely from a prefix) and `ValidThreeCNF.encode` are injective
-  (`encodeNat_injective`, `encodeList_injective`, `ValidThreeCNF.encode_injective`).
+  (`encodeNat_injective`, `encodeList_injective`, `ValidThreeCNF.encode_injective`). Equality of
+  paired bit strings determines both components (`pairBits_inj`).
 - `NPHard eb L` means that every TM0 `InNP` language has a `PolyTimeReduction` to `L`.
   `NPComplete eb L := InNP eb L ∧ NPHard eb L`.
 - `PolyTimeReduction` consists of a polynomial-time TM0-computable map and
@@ -267,6 +268,11 @@ resource and store obligations:
 - `RAMToTM.periodicCounterProg` advances a counter and a bounded phase, with correctness, frame and resource contracts.
 - `RAMToTM.forwardCopyProg` moves an input region to a higher, non-overlapping destination while
   preserving the source, providing workspace for a verifier or producer.
+- `RAMToTM.SameOff`, `BX` and `Comp` express frame, bounded Boolean-expression and computation
+  contracts. `forCnt` / `CntStep` support indexed loops, and `accAll` / `AccStep` support
+  conjunction scans; their lemmas establish correctness and boundedness under their hypotheses.
+- `RAMToTM.clearRangeProg` clears a range of cells, with zeroing, frame, cost and value-bound
+  lemmas under the stated register-separation and expression hypotheses.
 
 The producer entry points do not expose ABI types in their statements. Their hypotheses are
 facts about the final store: cell 0 holds the output start address, cell 1 the output length,
@@ -459,6 +465,7 @@ with `rev`.
 | NPComplete version | Lean version | Mathlib revision |
 | --- | --- | --- |
 | `v0.4.0` | `v4.35.0` | `v4.35.0` |
+| `v0.5.0` | `v4.35.0` | `v4.35.0` |
 
 Version 0.4.0 adds construction entry points and moves some declarations to namespaces matching
 their subjects. Their former internal names remain as aliases, but internal names are outside the
