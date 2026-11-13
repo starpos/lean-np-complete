@@ -2162,7 +2162,7 @@ reused directly by `CanonicalStoreFinalizeBody.lean` (cost/`ProgramBoundedIn`), 
 two-sided companion (`emitRowBody_frame_two_sided`) is built separately below from
 `emitRowBody_state_upto_ptr_two_sided`. -/
 
-lemma emitRowBody_state_upto_ptr (curJ tmpJ cntJ ptrJ rowJ M cur row rowKey cnt : ℕ)
+lemma emitRowBody_state_upto_ptr_two_sided (curJ tmpJ cntJ ptrJ rowJ M cur row rowKey cnt : ℕ)
     (tag : ℕ → Bool) (d : ℕ → ℕ) (σ : Store)
     (hc1 : 1 ≤ curJ) (hc2 : 1 ≤ tmpJ)
     (hCurTmp : curJ ≠ tmpJ) (hCurCnt : curJ ≠ cntJ) (hCurPtr : curJ ≠ ptrJ) (hCurRow : curJ ≠ rowJ)
@@ -2195,7 +2195,8 @@ lemma emitRowBody_state_upto_ptr (curJ tmpJ cntJ ptrJ rowJ M cur row rowKey cnt 
         ((emitNatProg curJ tmpJ (Expr.regInd (ctlCell rowJ))).eval
           ((ctlAssign cntJ (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1)))).eval σ))
         = σC) ∧
-      (∀ r, r < cur → r ≠ M + curJ → σC r = σ r) := by
+      (∀ r, r ≠ M + curJ → r ≠ M + tmpJ → r ≠ M + cntJ → r ≠ M + ptrJ →
+        (r < cur ∨ cur + rowKey + 1 ≤ r) → σC r = σ r) := by
   have hexprA : (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1))).eval σ = cnt := by
     have h1 : (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1))).eval σ
         = σ (σ (σ 0 + rowJ) + 1) := by simp [Expr.eval, ctlCell_eval]
@@ -2265,13 +2266,56 @@ lemma emitRowBody_state_upto_ptr (curJ tmpJ cntJ ptrJ rowJ M cur row rowKey cnt 
   · intro i hi
     rw [ctlAssign_eval_diff ptrJ _ σB (row + 2 + 2 * i + 1) (by omega)]
     exact hσBdataAll i hi
-  · intro r hr hrCur
+  · intro r hrC hrT hrCnt hrP hr
     have e3 : (ctlAssign ptrJ (Expr.add (ctlCell rowJ) (Expr.const 2))).eval σB r = σB r :=
       ctlAssign_eval_diff ptrJ _ σB r (by omega)
-    have e4 : σB r = σA r := hframeB r hrCur (by omega) (Or.inl hr)
+    have e4 : σB r = σA r := hframeB r hrC hrT hr
     have e5 : σA r = σ r := by
       rw [hσAdef, ctlAssign_eval_diff cntJ _ σ r (by omega)]
     rw [e3, e4, e5]
+
+lemma emitRowBody_state_upto_ptr (curJ tmpJ cntJ ptrJ rowJ M cur row rowKey cnt : ℕ)
+    (tag : ℕ → Bool) (d : ℕ → ℕ) (σ : Store)
+    (hc1 : 1 ≤ curJ) (hc2 : 1 ≤ tmpJ)
+    (hCurTmp : curJ ≠ tmpJ) (hCurCnt : curJ ≠ cntJ) (hCurPtr : curJ ≠ ptrJ) (hCurRow : curJ ≠ rowJ)
+    (hTmpCnt : tmpJ ≠ cntJ) (hTmpPtr : tmpJ ≠ ptrJ) (hTmpRow : tmpJ ≠ rowJ)
+    (hCntPtr : cntJ ≠ ptrJ) (hCntRow : cntJ ≠ rowJ) (hPtrRow : ptrJ ≠ rowJ)
+    (hM : σ 0 = M) (hcur : σ (M + curJ) = cur) (hcur1 : 1 ≤ cur)
+    (hrowCell : σ (M + rowJ) = row) (hrowKey : σ row = rowKey) (hcntCell : σ (row + 1) = cnt)
+    (htagAll : ∀ i, i < cnt → σ (row + 2 + 2 * i) = if tag i then 1 else 0)
+    (hdataAll : ∀ i, i < cnt → σ (row + 2 + 2 * i + 1) = d i)
+    (hloCur : M + curJ < row) (hloTmp : M + tmpJ < row)
+    (hloCnt : M + cntJ < row) (hloPtr : M + ptrJ < row)
+    (hsepFull : cur + (rowKey + 1) + (cnt + 1)
+      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + curJ)
+    (hsepTmpAll : cur + (rowKey + 1) + (cnt + 1)
+      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + tmpJ)
+    (hsepCntAll : cur + (rowKey + 1) + (cnt + 1)
+      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + cntJ)
+    (hsepPtrAll : cur + (rowKey + 1) + (cnt + 1)
+      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + ptrJ)
+    (hsepRowAll : cur + (rowKey + 1) + (cnt + 1)
+      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + rowJ) :
+    ∃ σC : Store,
+      σC (M + curJ) = cur + rowKey + 1 ∧
+      σC 0 = M ∧
+      σC (M + cntJ) = cnt ∧
+      σC (M + ptrJ) = row + 2 ∧
+      (∀ i, i < cnt → σC (row + 2 + 2 * i) = if tag i then 1 else 0) ∧
+      (∀ i, i < cnt → σC (row + 2 + 2 * i + 1) = d i) ∧
+      ((ctlAssign ptrJ (Expr.add (ctlCell rowJ) (Expr.const 2))).eval
+        ((emitNatProg curJ tmpJ (Expr.regInd (ctlCell rowJ))).eval
+          ((ctlAssign cntJ (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1)))).eval σ))
+        = σC) ∧
+      (∀ r, r < cur → r ≠ M + curJ → σC r = σ r) := by
+  obtain ⟨σC, hcurC, h0C, hcntC, hptrC, htagC, hdataC, heq, hframe⟩ :=
+    emitRowBody_state_upto_ptr_two_sided curJ tmpJ cntJ ptrJ rowJ M cur row rowKey cnt tag d σ
+      hc1 hc2 hCurTmp hCurCnt hCurPtr hCurRow hTmpCnt hTmpPtr hTmpRow hCntPtr hCntRow hPtrRow
+      hM hcur hcur1 hrowCell hrowKey hcntCell htagAll hdataAll hloCur hloTmp hloCnt hloPtr
+      hsepFull hsepTmpAll hsepCntAll hsepPtrAll hsepRowAll
+  refine ⟨σC, hcurC, h0C, hcntC, hptrC, htagC, hdataC, heq, ?_⟩
+  intro r hr hrCur
+  exact hframe r hrCur (by omega) (by omega) (by omega) (Or.inl hr)
 
 /-! ## Variable-length row table: cumulative address and cursor bookkeeping
 
@@ -2565,123 +2609,11 @@ lemma emitOpsListProg_frame_two_sided (curJ tmpJ cntJ ptrJ M cur rowBase cnt : �
 
 /-! ## Two-sided frame for `emitRowBody`
 
-Reruns `emitRowBody_state_upto_ptr`'s state trace with `emitNatProg_eval_state`'s frame exposed in
-full (it is already two-sided, unlike `emitOpsListProg`'s bundled wrapper) so `emitRowBody`'s own
-two-sided frame can chain onto `emitOpsListProg_frame_two_sided` instead of the one-sided
-`emitOpsListProg_eval_state`. This is the fact a row *table* emitter needs to show one row's
-emission leaves every other row's raw data untouched. -/
+`emitRowBody_state_upto_ptr_two_sided` exposes `emitNatProg_eval_state`'s two-sided frame so
+`emitRowBody`'s own two-sided frame can chain onto `emitOpsListProg_frame_two_sided` instead of
+the one-sided `emitOpsListProg_eval_state`. This is the fact a row *table* emitter needs to show
+one row's emission leaves every other row's raw data untouched. -/
 
-lemma emitRowBody_state_upto_ptr_two_sided (curJ tmpJ cntJ ptrJ rowJ M cur row rowKey cnt : ℕ)
-    (tag : ℕ → Bool) (d : ℕ → ℕ) (σ : Store)
-    (hc1 : 1 ≤ curJ) (hc2 : 1 ≤ tmpJ)
-    (hCurTmp : curJ ≠ tmpJ) (hCurCnt : curJ ≠ cntJ) (hCurPtr : curJ ≠ ptrJ) (hCurRow : curJ ≠ rowJ)
-    (hTmpCnt : tmpJ ≠ cntJ) (hTmpPtr : tmpJ ≠ ptrJ) (hTmpRow : tmpJ ≠ rowJ)
-    (hCntPtr : cntJ ≠ ptrJ) (hCntRow : cntJ ≠ rowJ) (hPtrRow : ptrJ ≠ rowJ)
-    (hM : σ 0 = M) (hcur : σ (M + curJ) = cur) (hcur1 : 1 ≤ cur)
-    (hrowCell : σ (M + rowJ) = row) (hrowKey : σ row = rowKey) (hcntCell : σ (row + 1) = cnt)
-    (htagAll : ∀ i, i < cnt → σ (row + 2 + 2 * i) = if tag i then 1 else 0)
-    (hdataAll : ∀ i, i < cnt → σ (row + 2 + 2 * i + 1) = d i)
-    (hloCur : M + curJ < row) (hloTmp : M + tmpJ < row)
-    (hloCnt : M + cntJ < row) (hloPtr : M + ptrJ < row)
-    (hsepFull : cur + (rowKey + 1) + (cnt + 1)
-      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + curJ)
-    (hsepTmpAll : cur + (rowKey + 1) + (cnt + 1)
-      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + tmpJ)
-    (hsepCntAll : cur + (rowKey + 1) + (cnt + 1)
-      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + cntJ)
-    (hsepPtrAll : cur + (rowKey + 1) + (cnt + 1)
-      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + ptrJ)
-    (hsepRowAll : cur + (rowKey + 1) + (cnt + 1)
-      + ((List.range cnt).flatMap (fun i => [tag i] ++ encodeNat (d i))).length ≤ M + rowJ) :
-    ∃ σC : Store,
-      σC (M + curJ) = cur + rowKey + 1 ∧
-      σC 0 = M ∧
-      σC (M + cntJ) = cnt ∧
-      σC (M + ptrJ) = row + 2 ∧
-      (∀ i, i < cnt → σC (row + 2 + 2 * i) = if tag i then 1 else 0) ∧
-      (∀ i, i < cnt → σC (row + 2 + 2 * i + 1) = d i) ∧
-      ((ctlAssign ptrJ (Expr.add (ctlCell rowJ) (Expr.const 2))).eval
-        ((emitNatProg curJ tmpJ (Expr.regInd (ctlCell rowJ))).eval
-          ((ctlAssign cntJ (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1)))).eval σ))
-        = σC) ∧
-      (∀ r, r ≠ M + curJ → r ≠ M + tmpJ → r ≠ M + cntJ → r ≠ M + ptrJ →
-        (r < cur ∨ cur + rowKey + 1 ≤ r) → σC r = σ r) := by
-  have hexprA : (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1))).eval σ = cnt := by
-    have h1 : (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1))).eval σ
-        = σ (σ (σ 0 + rowJ) + 1) := by simp [Expr.eval, ctlCell_eval]
-    rw [h1, hM, hrowCell]; exact hcntCell
-  have hσAcnt : (ctlAssign cntJ (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1)))).eval σ
-      (M + cntJ) = cnt := by
-    have h := ctlAssign_eval_same cntJ
-      (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1))) σ
-    rw [hM] at h
-    rw [h]; exact hexprA
-  set σA := (ctlAssign cntJ (Expr.regInd (Expr.add (ctlCell rowJ) (Expr.const 1)))).eval σ
-    with hσAdef
-  have hσArow : σA (M + rowJ) = row := by
-    rw [hσAdef, ctlAssign_eval_diff cntJ _ σ (M + rowJ) (by omega)]; exact hrowCell
-  have hσAcur : σA (M + curJ) = cur := by
-    rw [hσAdef, ctlAssign_eval_diff cntJ _ σ (M + curJ) (by omega)]; exact hcur
-  have hσA0 : σA 0 = M := by
-    rw [hσAdef, ctlAssign_eval_diff cntJ _ σ 0 (by omega)]; exact hM
-  have hσArowKey : σA row = rowKey := by
-    rw [hσAdef, ctlAssign_eval_diff cntJ _ σ row (by omega)]; exact hrowKey
-  have hσAtagAll : ∀ i, i < cnt → σA (row + 2 + 2 * i) = if tag i then 1 else 0 := by
-    intro i hi
-    rw [hσAdef, ctlAssign_eval_diff cntJ _ σ (row + 2 + 2 * i) (by omega)]
-    exact htagAll i hi
-  have hσAdataAll : ∀ i, i < cnt → σA (row + 2 + 2 * i + 1) = d i := by
-    intro i hi
-    rw [hσAdef, ctlAssign_eval_diff cntJ _ σ (row + 2 + 2 * i + 1) (by omega)]
-    exact hdataAll i hi
-  have hexprB : (Expr.regInd (ctlCell rowJ)).eval σA = rowKey := by
-    have h1 : (Expr.regInd (ctlCell rowJ)).eval σA = σA (σA (σA 0 + rowJ)) := by
-      simp [Expr.eval, ctlCell_eval]
-    rw [h1, hσA0, hσArow]; exact hσArowKey
-  have hsepB : cur + (Expr.regInd (ctlCell rowJ)).eval σA < M + curJ := by
-    rw [hexprB]; omega
-  obtain ⟨-, hcursorB, hframeB, hctlB⟩ :=
-    emitNatProg_eval_state curJ tmpJ M cur (Expr.regInd (ctlCell rowJ)) σA
-      hc1 hc2 hCurTmp hσA0 hσAcur hcur1 hsepB
-  rw [hexprB] at hcursorB hframeB
-  set σB := (emitNatProg curJ tmpJ (Expr.regInd (ctlCell rowJ))).eval σA with hσBdef
-  have hσBrow : σB (M + rowJ) = row := by
-    rw [hframeB (M + rowJ) (by omega) (by omega) (Or.inr (by omega))]; exact hσArow
-  have hσBcnt : σB (M + cntJ) = cnt := by
-    rw [hframeB (M + cntJ) (by omega) (by omega) (Or.inr (by omega))]; exact hσAcnt
-  have hσBtagAll : ∀ i, i < cnt → σB (row + 2 + 2 * i) = if tag i then 1 else 0 := by
-    intro i hi
-    rw [hframeB (row + 2 + 2 * i) (by omega) (by omega) (Or.inr (by omega))]
-    exact hσAtagAll i hi
-  have hσBdataAll : ∀ i, i < cnt → σB (row + 2 + 2 * i + 1) = d i := by
-    intro i hi
-    rw [hframeB (row + 2 + 2 * i + 1) (by omega) (by omega) (Or.inr (by omega))]
-    exact hσAdataAll i hi
-  have hexprC : (Expr.add (ctlCell rowJ) (Expr.const 2)).eval σB = row + 2 := by
-    simp [Expr.eval, ctlCell_eval, hctlB, hσBrow]
-  have hσCptr : (ctlAssign ptrJ (Expr.add (ctlCell rowJ) (Expr.const 2))).eval σB
-      (M + ptrJ) = row + 2 := by
-    have h := ctlAssign_eval_same ptrJ (Expr.add (ctlCell rowJ) (Expr.const 2)) σB
-    rw [hctlB] at h
-    rw [h]; exact hexprC
-  refine ⟨(ctlAssign ptrJ (Expr.add (ctlCell rowJ) (Expr.const 2))).eval σB,
-    ?_, ?_, ?_, hσCptr, ?_, ?_, rfl, ?_⟩
-  · rw [ctlAssign_eval_diff ptrJ _ σB (M + curJ) (by omega)]; exact hcursorB
-  · rw [ctlAssign_eval_diff ptrJ _ σB 0 (by omega)]; exact hctlB
-  · rw [ctlAssign_eval_diff ptrJ _ σB (M + cntJ) (by omega)]; exact hσBcnt
-  · intro i hi
-    rw [ctlAssign_eval_diff ptrJ _ σB (row + 2 + 2 * i) (by omega)]
-    exact hσBtagAll i hi
-  · intro i hi
-    rw [ctlAssign_eval_diff ptrJ _ σB (row + 2 + 2 * i + 1) (by omega)]
-    exact hσBdataAll i hi
-  · intro r hrC hrT hrCnt hrP hr
-    have e3 : (ctlAssign ptrJ (Expr.add (ctlCell rowJ) (Expr.const 2))).eval σB r = σB r :=
-      ctlAssign_eval_diff ptrJ _ σB r (by omega)
-    have e4 : σB r = σA r := hframeB r hrC hrT hr
-    have e5 : σA r = σ r := by
-      rw [hσAdef, ctlAssign_eval_diff cntJ _ σ r (by omega)]
-    rw [e3, e4, e5]
 
 /-- `emitRowBody`'s own two-sided frame: cells other than the five control cells, outside the
     whole row's write window, survive. Chains `emitRowBody_state_upto_ptr_two_sided` with

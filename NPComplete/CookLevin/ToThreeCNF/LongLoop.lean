@@ -510,56 +510,6 @@ lemma splitTailEmitRel_nonempty_fixed_eval_low_frame
   rw [hfinish]
   exact hτr
 
-lemma splitTailEmitRel_nonempty_fixed_eval
-    (M curJ tmpJ start : ℕ)
-    (cursorReg polReg varReg doneReg remainingReg pol2Reg var2Reg pol3Reg var3Reg
-      carryPolReg carryValReg posPolReg freshReg bound tailBound : ℕ)
-    (base : ℕ) (carry : Literal) (ls : List Literal)
-    (pref tail : Bits) (addr : ℕ) (σ : Store)
-    (hbound : ∀ l ∈ ls, l.var + 1 ≤ bound)
-    (hne : ls ≠ [])
-    (hls : ls.length ≤ tailBound)
-    (hrel : SplitTailEmitRel σ M curJ tmpJ start base carry ls pref tail addr
-      cursorReg polReg varReg doneReg remainingReg pol2Reg var2Reg pol3Reg var3Reg
-      carryPolReg carryValReg posPolReg freshReg) :
-    ∃ τ base' carry' ls' pref' addr',
-      τ = (splitTailEmitProg curJ tmpJ cursorReg polReg varReg doneReg remainingReg
-        pol2Reg var2Reg pol3Reg var3Reg carryPolReg carryValReg posPolReg freshReg bound
-        tailBound).eval σ ∧
-      SplitTailEmitDone τ M curJ start base' carry' ls' pref' tail addr'
-        cursorReg remainingReg freshReg ∧
-      base' = (splitTail base carry ls).2 ∧
-      pref' ++ splitTailPayload base' carry' ls' =
-        pref ++ splitTailPayload base carry ls ∧
-      τ cursorReg = addr + (splitTailInputBits ls []).length := by
-  let body := splitTailEmitStepProg curJ tmpJ cursorReg polReg varReg doneReg remainingReg
-    pol2Reg var2Reg pol3Reg var3Reg carryPolReg carryValReg posPolReg freshReg bound
-  obtain ⟨k, τ, base', carry', ls', pref', addr', hk, hloop, hdone, hbaseStrong,
-      hpayloadStrong, hcursorStrong⟩ :=
-    splitTailEmitRel_nonempty_to_done
-      M curJ tmpJ start cursorReg polReg varReg doneReg remainingReg
-      pol2Reg var2Reg pol3Reg var3Reg carryPolReg carryValReg posPolReg freshReg bound
-      base carry ls pref tail addr σ hbound hne hrel
-  have hk' : k ≤ tailBound + 1 := by
-    omega
-  have hzero : ∀ ρ : Store, ρ remainingReg = 0 → body.eval ρ = ρ := by
-    intro ρ hρ
-    simp [body, splitTailEmitStepProg, hρ, Expr.eval]
-  have hrem0 : σ remainingReg ≠ 0 := by
-    rw [hrel.remaining]
-    exact Nat.ne_of_gt (List.length_pos_of_ne_nil hne)
-  have hfinish := splitTailEmitProg_eval_eq_loopEval_of_remaining
-    (curJ := curJ) (tmpJ := tmpJ) (cursorReg := cursorReg) (polReg := polReg)
-    (varReg := varReg) (doneReg := doneReg) (remainingReg := remainingReg)
-    (pol2Reg := pol2Reg) (var2Reg := var2Reg) (pol3Reg := pol3Reg)
-    (var3Reg := var3Reg) (carryPolReg := carryPolReg) (carryValReg := carryValReg)
-    (posPolReg := posPolReg) (freshReg := freshReg) (bound := bound)
-    (tailBound := tailBound) (σ := σ) (τ := τ) (body := body) (k := k)
-    hk' hloop (by rfl) hzero hrem0 hdone.remaining
-  refine ⟨τ, base', carry', ls', pref', addr', ?_, hdone, hbaseStrong,
-    hpayloadStrong, hcursorStrong⟩
-  exact hfinish.symm
-
 lemma splitTailEmitRel_nonempty_fixed_eval_frame
     (M curJ tmpJ start : ℕ)
     (cursorReg polReg varReg doneReg remainingReg pol2Reg var2Reg pol3Reg var3Reg
@@ -608,6 +558,35 @@ lemma splitTailEmitRel_nonempty_fixed_eval_frame
   refine ⟨τ, base', carry', ls', pref', addr', ?_, hdone, hbaseStrong,
     hpayloadStrong, hcursorStrong⟩
   exact hfinish.symm
+
+lemma splitTailEmitRel_nonempty_fixed_eval
+    (M curJ tmpJ start : ℕ)
+    (cursorReg polReg varReg doneReg remainingReg pol2Reg var2Reg pol3Reg var3Reg
+      carryPolReg carryValReg posPolReg freshReg bound tailBound : ℕ)
+    (base : ℕ) (carry : Literal) (ls : List Literal)
+    (pref tail : Bits) (addr : ℕ) (σ : Store)
+    (hbound : ∀ l ∈ ls, l.var + 1 ≤ bound)
+    (hne : ls ≠ [])
+    (hls : ls.length ≤ tailBound)
+    (hrel : SplitTailEmitRel σ M curJ tmpJ start base carry ls pref tail addr
+      cursorReg polReg varReg doneReg remainingReg pol2Reg var2Reg pol3Reg var3Reg
+      carryPolReg carryValReg posPolReg freshReg) :
+    ∃ τ base' carry' ls' pref' addr',
+      τ = (splitTailEmitProg curJ tmpJ cursorReg polReg varReg doneReg remainingReg
+        pol2Reg var2Reg pol3Reg var3Reg carryPolReg carryValReg posPolReg freshReg bound
+        tailBound).eval σ ∧
+      SplitTailEmitDone τ M curJ start base' carry' ls' pref' tail addr'
+        cursorReg remainingReg freshReg ∧
+      base' = (splitTail base carry ls).2 ∧
+      pref' ++ splitTailPayload base' carry' ls' =
+        pref ++ splitTailPayload base carry ls ∧
+      τ cursorReg = addr + (splitTailInputBits ls []).length := by
+  obtain ⟨τ, base', carry', ls', pref', addr', heval, hdone, hbase, hpayload, hcursor⟩ :=
+    splitTailEmitRel_nonempty_fixed_eval_frame
+      M curJ tmpJ start cursorReg polReg varReg doneReg remainingReg
+      pol2Reg var2Reg pol3Reg var3Reg carryPolReg carryValReg posPolReg freshReg bound
+      tailBound base carry ls pref tail addr σ hbound hne hls hrel
+  exact ⟨τ, base', carry', ls', pref', addr', heval, hdone.done, hbase, hpayload, hcursor⟩
 
 lemma splitTailEmitRel_nonempty_fixed_eval_after_frame
     (M curJ tmpJ start : ℕ)
