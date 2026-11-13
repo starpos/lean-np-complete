@@ -19,6 +19,11 @@ public import NPComplete.RAMToTM.ThreeSat.Pipeline.ThreeSatDecodeBounds
 public import NPComplete.RAMToTM.Generic.Api.OperandBoundOfBounded
 public import NPComplete.RAMToTM.Generic.Api.BoundedInMono
 public import NPComplete.RAMToTM.Generic.Api.BoundedSimp
+public import NPComplete.RAMToTM.Generic.Api.SameOff
+public import NPComplete.RAMToTM.Generic.Api.BoolExpr
+public import NPComplete.RAMToTM.Generic.Api.CountedLoop
+public import NPComplete.RAMToTM.Generic.Api.ConjunctionScan
+public import NPComplete.RAMToTM.Generic.Emit.ClearRangeProg
 public import NPComplete.RAMToTM.Generic.ForwardCopy
 public import NPComplete.RAMToTM.Generic.UnaryWriter
 public import NPComplete.RAMToTM.Generic.PeriodicCounter

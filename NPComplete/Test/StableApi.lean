@@ -1674,6 +1674,13 @@ info: NPComplete.CookLevin.pairBits_length : ∀ (x w : List Bool),
 #check @NPComplete.CookLevin.pairBits_length
 
 /--
+info: @NPComplete.CookLevin.pairBits_inj : ∀ {x x' w w' : List Bool},
+  NPComplete.CookLevin.pairBits x w = NPComplete.CookLevin.pairBits x' w' → x = x' ∧ w = w'
+-/
+#guard_msgs in
+#check @NPComplete.CookLevin.pairBits_inj
+
+/--
 info: @NPComplete.CookLevin.promisePolyDecidable_of_false : ∀ {α : Type} (enc : α → NPComplete.BitEncoding.Bits)
   (L : α → Prop), NPComplete.CookLevin.PromisePolyDecidable enc (fun x => False) L
 -/

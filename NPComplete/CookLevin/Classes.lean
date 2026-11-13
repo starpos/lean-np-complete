@@ -40,6 +40,23 @@ open NPComplete.CookLevin.TM2to1 (stepsTo_zero stepsTo_cons)
   simp [pairBits, List.length_flatMap]
   omega
 
+@[stable_api] lemma pairBits_inj {x x' w w' : List Bool}
+    (h : pairBits x w = pairBits x' w') : x = x' ∧ w = w' := by
+  induction x generalizing x' with
+  | nil =>
+    cases x' with
+    | nil => simpa [pairBits] using h
+    | cons b bs => simp [pairBits] at h
+  | cons b bs ih =>
+    cases x' with
+    | nil => simp [pairBits] at h
+    | cons b' bs' =>
+      simp only [pairBits, List.flatMap_cons, List.cons_append, List.append_assoc,
+        List.nil_append, List.cons.injEq, true_and] at h ih ⊢
+      obtain ⟨rfl, h⟩ := h
+      have := ih (x' := bs') (by simpa [pairBits] using h)
+      simp [this]
+
 /-- `L` is decided by a Boolean TM0 poly-time computer under `enc`. -/
 @[stable_api] def InP {α : Type} (enc : α → List Bool) (L : α → Prop) : Prop :=
   ∃ f : α → Bool,
