@@ -298,7 +298,7 @@ lemma writerAppendThreeRegsProg_eval
     (by simpa [σ2, σ1] using hs2) hroom3 hlow3.2
   simpa [writerAppendThreeRegsProg, eval_seq, List.append_assoc] using hs3
 
-lemma writerAppendThreeRegsProg_frame
+lemma writerAppendThreeRegsProg_frame_both
     (M curJ tmpJ start : ℕ) (pref : Bits)
     (p1 v1 p2 v2 p3 v3 pol1 val1 pol2 val2 pol3 val3 : ℕ) (σ : Store)
     (hcurJ : 1 ≤ curJ) (htmpJ : curJ < tmpJ)
@@ -312,7 +312,7 @@ lemma writerAppendThreeRegsProg_frame
     (hlow3 : p3 < start ∧ v3 < start)
     (hs : WriterState σ M curJ start pref)
     (hroom : start + pref.length + val1 + val2 + val3 + 6 < M + curJ)
-    {r : ℕ} (hr : r < start) :
+    {r : ℕ} (hr : r < start ∨ M + tmpJ < r) :
     (writerAppendThreeRegsProg curJ tmpJ p1 v1 p2 v2 p3 v3).eval σ r = σ r := by
   have hroom1 : start + pref.length + val1 + 2 < M + curJ := by omega
   have hs1 := writerAppendLiteralProg_eval M curJ tmpJ start pref p1 v1 σ
@@ -349,17 +349,35 @@ lemma writerAppendThreeRegsProg_frame
     (pref ++ encodedLiteralBits pol1 val1 ++ encodedLiteralBits pol2 val2)
     p3 v3 σ2 hcurJ htmpJ hσ2p3 hσ2v3 hpol3
     (by simpa [σ2, σ1] using hs2) hroom3 hlow3.2
-  have hf3 := writerAppendLiteralProg_frame M curJ tmpJ start
+  have hf3 := writerAppendLiteralProg_frame_both M curJ tmpJ start
     (pref ++ encodedLiteralBits pol1 val1 ++ encodedLiteralBits pol2 val2)
     p3 v3 val3 σ2 hcurJ htmpJ hσ2v3
     (by simpa [σ2, σ1] using hs2) hroom3 hlow3.2 hr
-  have hf2 := writerAppendLiteralProg_frame M curJ tmpJ start
+  have hf2 := writerAppendLiteralProg_frame_both M curJ tmpJ start
     (pref ++ encodedLiteralBits pol1 val1) p2 v2 val2 σ1 hcurJ htmpJ
     hσ1v2 (by simpa [σ1] using hs1) hroom2 hlow2.2 hr
-  have hf1 := writerAppendLiteralProg_frame M curJ tmpJ start pref p1 v1 val1 σ
+  have hf1 := writerAppendLiteralProg_frame_both M curJ tmpJ start pref p1 v1 val1 σ
     hcurJ htmpJ hv1 hs hroom1 hlow1 hr
   rw [writerAppendThreeRegsProg, eval_seq, eval_seq]
   exact hf3.trans (hf2.trans hf1)
+
+lemma writerAppendThreeRegsProg_frame
+    (M curJ tmpJ start : ℕ) (pref : Bits)
+    (p1 v1 p2 v2 p3 v3 pol1 val1 pol2 val2 pol3 val3 : ℕ) (σ : Store)
+    (hcurJ : 1 ≤ curJ) (htmpJ : curJ < tmpJ)
+    (hp1 : σ p1 = pol1) (hv1 : σ v1 = val1)
+    (hp2 : σ p2 = pol2) (hv2 : σ v2 = val2)
+    (hp3 : σ p3 = pol3) (hv3 : σ v3 = val3)
+    (hpol1 : pol1 = 0 ∨ pol1 = 1) (hpol2 : pol2 = 0 ∨ pol2 = 1)
+    (hpol3 : pol3 = 0 ∨ pol3 = 1)
+    (hlow1 : v1 < start)
+    (hlow2 : p2 < start ∧ v2 < start)
+    (hlow3 : p3 < start ∧ v3 < start)
+    (hs : WriterState σ M curJ start pref)
+    (hroom : start + pref.length + val1 + val2 + val3 + 6 < M + curJ)
+    {r : ℕ} (hr : r < start) :
+    (writerAppendThreeRegsProg curJ tmpJ p1 v1 p2 v2 p3 v3).eval σ r = σ r := by
+  exact writerAppendThreeRegsProg_frame_both M curJ tmpJ start pref p1 v1 p2 v2 p3 v3 pol1 val1 pol2 val2 pol3 val3 σ hcurJ htmpJ hp1 hv1 hp2 hv2 hp3 hv3 hpol1 hpol2 hpol3 hlow1 hlow2 hlow3 hs hroom (Or.inl hr)
 
 lemma writerAppendThreeRegsProg_frame_high
     (M curJ tmpJ start : ℕ) (pref : Bits)
@@ -377,52 +395,7 @@ lemma writerAppendThreeRegsProg_frame_high
     (hroom : start + pref.length + val1 + val2 + val3 + 6 < M + curJ)
     {r : ℕ} (hr : M + tmpJ < r) :
     (writerAppendThreeRegsProg curJ tmpJ p1 v1 p2 v2 p3 v3).eval σ r = σ r := by
-  have hroom1 : start + pref.length + val1 + 2 < M + curJ := by omega
-  have hs1 := writerAppendLiteralProg_eval M curJ tmpJ start pref p1 v1 σ
-    hcurJ htmpJ hp1 hv1 hpol1 hs hroom1 hlow1
-  let σ1 := (writerAppendLiteralProg curJ tmpJ p1 v1).eval σ
-  have hσ1p2 := (writerAppendLiteralProg_frame M curJ tmpJ start pref p1 v1 val1 σ
-    hcurJ htmpJ hv1 hs hroom1 hlow1 hlow2.1).trans hp2
-  have hσ1v2 := (writerAppendLiteralProg_frame M curJ tmpJ start pref p1 v1 val1 σ
-    hcurJ htmpJ hv1 hs hroom1 hlow1 hlow2.2).trans hv2
-  have hσ1p3 := (writerAppendLiteralProg_frame M curJ tmpJ start pref p1 v1 val1 σ
-    hcurJ htmpJ hv1 hs hroom1 hlow1 hlow3.1).trans hp3
-  have hσ1v3 := (writerAppendLiteralProg_frame M curJ tmpJ start pref p1 v1 val1 σ
-    hcurJ htmpJ hv1 hs hroom1 hlow1 hlow3.2).trans hv3
-  have hroom2 : start + (pref ++ encodedLiteralBits pol1 val1).length + val2 + 2 <
-      M + curJ := by
-    simp [encodedLiteralBits, List.length_append, encodeNat_length]
-    omega
-  have hs2 := writerAppendLiteralProg_eval M curJ tmpJ start
-    (pref ++ encodedLiteralBits pol1 val1) p2 v2 σ1 hcurJ htmpJ
-    hσ1p2 hσ1v2 hpol2 (by simpa [σ1] using hs1) hroom2 hlow2.2
-  let σ2 := (writerAppendLiteralProg curJ tmpJ p2 v2).eval σ1
-  have hσ2p3 := (writerAppendLiteralProg_frame M curJ tmpJ start
-    (pref ++ encodedLiteralBits pol1 val1) p2 v2 val2 σ1 hcurJ htmpJ
-      hσ1v2 (by simpa [σ1] using hs1) hroom2 hlow2.2 hlow3.1).trans hσ1p3
-  have hσ2v3 := (writerAppendLiteralProg_frame M curJ tmpJ start
-    (pref ++ encodedLiteralBits pol1 val1) p2 v2 val2 σ1 hcurJ htmpJ
-      hσ1v2 (by simpa [σ1] using hs1) hroom2 hlow2.2 hlow3.2).trans hσ1v3
-  have hroom3 : start +
-      (pref ++ encodedLiteralBits pol1 val1 ++ encodedLiteralBits pol2 val2).length +
-      val3 + 2 < M + curJ := by
-    simp [encodedLiteralBits, List.length_append, encodeNat_length]
-    omega
-  have hs3 := writerAppendLiteralProg_eval M curJ tmpJ start
-    (pref ++ encodedLiteralBits pol1 val1 ++ encodedLiteralBits pol2 val2)
-    p3 v3 σ2 hcurJ htmpJ hσ2p3 hσ2v3 hpol3
-      (by simpa [σ2, σ1] using hs2) hroom3 hlow3.2
-  have hf3 := writerAppendLiteralProg_frame_high M curJ tmpJ start
-    (pref ++ encodedLiteralBits pol1 val1 ++ encodedLiteralBits pol2 val2)
-    p3 v3 val3 σ2 hcurJ htmpJ hσ2v3
-      (by simpa [σ2, σ1] using hs2) hroom3 hlow3.2 hr
-  have hf2 := writerAppendLiteralProg_frame_high M curJ tmpJ start
-    (pref ++ encodedLiteralBits pol1 val1) p2 v2 val2 σ1 hcurJ htmpJ
-      hσ1v2 (by simpa [σ1] using hs1) hroom2 hlow2.2 hr
-  have hf1 := writerAppendLiteralProg_frame_high M curJ tmpJ start pref p1 v1 val1 σ
-    hcurJ htmpJ hv1 hs hroom1 hlow1 hr
-  rw [writerAppendThreeRegsProg, eval_seq, eval_seq]
-  exact hf3.trans (hf2.trans hf1)
+  exact writerAppendThreeRegsProg_frame_both M curJ tmpJ start pref p1 v1 p2 v2 p3 v3 pol1 val1 pol2 val2 pol3 val3 σ hcurJ htmpJ hp1 hv1 hp2 hv2 hp3 hv3 hpol1 hpol2 hpol3 hlow1 hlow2 hlow3 hs hroom (Or.inr hr)
 
 lemma writerAppendThreeRegsProg_frame_after
     (M curJ tmpJ start : ℕ) (pref : Bits)

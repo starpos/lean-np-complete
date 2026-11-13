@@ -185,7 +185,7 @@ lemma writerAppendClauseEmptyProg_eval
   rw [writerAppendClauseEmptyProg, eval_seq]
   simpa [σ1, encodedThreeLiteralBits, List.append_assoc] using hsecond
 
-lemma writerAppendClauseEmptyProg_frame
+lemma writerAppendClauseEmptyProg_frame_both
     (M curJ tmpJ start : ℕ) (pref : Bits)
     (posPolReg negPolReg freshReg base : ℕ) (σ : Store)
     (hcurJ : 1 ≤ curJ) (htmpJ : curJ < tmpJ)
@@ -195,7 +195,7 @@ lemma writerAppendClauseEmptyProg_frame
     (hlowFresh : freshReg < start)
     (hs : WriterState σ M curJ start pref)
     (hroom : start + pref.length + 6 * (base + 2) < M + curJ)
-    {r : ℕ} (hr : r < start) :
+    {r : ℕ} (hr : r < start ∨ M + tmpJ < r) :
     (writerAppendClauseEmptyProg curJ tmpJ posPolReg negPolReg freshReg).eval σ r = σ r := by
   have hroom1 : start + pref.length + 3 * (base + 2) < M + curJ := by omega
   have hfirst := writerAppendThreeRegsProg_eval M curJ tmpJ start pref
@@ -224,19 +224,33 @@ lemma writerAppendClauseEmptyProg_frame
     simp [encodedThreeLiteralBits, encodedLiteralBits, List.length_append,
       encodeNat_length]
     omega
-  have hsecond := writerAppendThreeRegsProg_frame M curJ tmpJ start
+  have hsecond := writerAppendThreeRegsProg_frame_both M curJ tmpJ start
     (pref ++ encodedThreeLiteralBits 0 base 0 base 0 base)
     negPolReg freshReg negPolReg freshReg negPolReg freshReg 1 base 1 base 1 base σ1
     hcurJ htmpJ hσ1neg hσ1fresh hσ1neg hσ1fresh hσ1neg hσ1fresh
     (Or.inr rfl) (Or.inr rfl) (Or.inr rfl)
     hlowFresh ⟨hlowNeg, hlowFresh⟩ ⟨hlowNeg, hlowFresh⟩ hfirst' (by omega) hr
-  have hfirstFrame := writerAppendThreeRegsProg_frame M curJ tmpJ start pref
+  have hfirstFrame := writerAppendThreeRegsProg_frame_both M curJ tmpJ start pref
     posPolReg freshReg posPolReg freshReg posPolReg freshReg 0 base 0 base 0 base σ
     hcurJ htmpJ hpos hfresh hpos hfresh hpos hfresh
     (Or.inl rfl) (Or.inl rfl) (Or.inl rfl)
     hlowFresh ⟨hlowPos, hlowFresh⟩ ⟨hlowPos, hlowFresh⟩ hs (by omega) hr
   rw [writerAppendClauseEmptyProg, eval_seq]
   simpa [σ1] using hsecond.trans hfirstFrame
+
+lemma writerAppendClauseEmptyProg_frame
+    (M curJ tmpJ start : ℕ) (pref : Bits)
+    (posPolReg negPolReg freshReg base : ℕ) (σ : Store)
+    (hcurJ : 1 ≤ curJ) (htmpJ : curJ < tmpJ)
+    (hpos : σ posPolReg = 0) (hneg : σ negPolReg = 1)
+    (hfresh : σ freshReg = base)
+    (hlowPos : posPolReg < start) (hlowNeg : negPolReg < start)
+    (hlowFresh : freshReg < start)
+    (hs : WriterState σ M curJ start pref)
+    (hroom : start + pref.length + 6 * (base + 2) < M + curJ)
+    {r : ℕ} (hr : r < start) :
+    (writerAppendClauseEmptyProg curJ tmpJ posPolReg negPolReg freshReg).eval σ r = σ r := by
+  exact writerAppendClauseEmptyProg_frame_both M curJ tmpJ start pref posPolReg negPolReg freshReg base σ hcurJ htmpJ hpos hneg hfresh hlowPos hlowNeg hlowFresh hs hroom (Or.inl hr)
 
 lemma writerAppendClauseEmptyProg_frame_high
     (M curJ tmpJ start : ℕ) (pref : Bits)
@@ -250,49 +264,7 @@ lemma writerAppendClauseEmptyProg_frame_high
     (hroom : start + pref.length + 6 * (base + 2) < M + curJ)
     {r : ℕ} (hr : M + tmpJ < r) :
     (writerAppendClauseEmptyProg curJ tmpJ posPolReg negPolReg freshReg).eval σ r = σ r := by
-  have hroom1 : start + pref.length + 3 * (base + 2) < M + curJ := by omega
-  have hfirst := writerAppendThreeRegsProg_eval M curJ tmpJ start pref
-    posPolReg freshReg posPolReg freshReg posPolReg freshReg 0 base 0 base 0 base σ
-    hcurJ htmpJ hpos hfresh hpos hfresh hpos hfresh
-    (Or.inl rfl) (Or.inl rfl) (Or.inl rfl)
-    hlowFresh ⟨hlowPos, hlowFresh⟩ ⟨hlowPos, hlowFresh⟩ hs (by omega)
-  let σ1 := (writerAppendThreeRegsProg curJ tmpJ posPolReg freshReg
-    posPolReg freshReg posPolReg freshReg).eval σ
-  have hfirst' : WriterState σ1 M curJ start
-      (pref ++ encodedThreeLiteralBits 0 base 0 base 0 base) := by
-    simpa [σ1, encodedThreeLiteralBits, List.append_assoc] using hfirst
-  have hσ1neg := (writerAppendThreeRegsProg_frame M curJ tmpJ start pref
-    posPolReg freshReg posPolReg freshReg posPolReg freshReg 0 base 0 base 0 base σ
-    hcurJ htmpJ hpos hfresh hpos hfresh hpos hfresh
-    (Or.inl rfl) (Or.inl rfl) (Or.inl rfl)
-    hlowFresh ⟨hlowPos, hlowFresh⟩ ⟨hlowPos, hlowFresh⟩ hs (by omega) hlowNeg).trans hneg
-  have hσ1fresh := (writerAppendThreeRegsProg_frame M curJ tmpJ start pref
-    posPolReg freshReg posPolReg freshReg posPolReg freshReg 0 base 0 base 0 base σ
-    hcurJ htmpJ hpos hfresh hpos hfresh hpos hfresh
-    (Or.inl rfl) (Or.inl rfl) (Or.inl rfl)
-    hlowFresh ⟨hlowPos, hlowFresh⟩ ⟨hlowPos, hlowFresh⟩ hs (by omega) hlowFresh).trans hfresh
-  have hroom2 : start +
-      (pref ++ encodedThreeLiteralBits 0 base 0 base 0 base).length +
-        3 * (base + 2) < M + curJ := by
-    simp [encodedThreeLiteralBits, encodedLiteralBits, List.length_append,
-      encodeNat_length]
-    omega
-  have hroom2' : start +
-      (pref ++ encodedThreeLiteralBits 0 base 0 base 0 base).length +
-        base + base + base + 6 < M + curJ := by omega
-  have hsecond := writerAppendThreeRegsProg_frame_high M curJ tmpJ start
-    (pref ++ encodedThreeLiteralBits 0 base 0 base 0 base)
-    negPolReg freshReg negPolReg freshReg negPolReg freshReg 1 base 1 base 1 base σ1
-    hcurJ htmpJ hσ1neg hσ1fresh hσ1neg hσ1fresh hσ1neg hσ1fresh
-    (Or.inr rfl) (Or.inr rfl) (Or.inr rfl)
-    hlowFresh ⟨hlowNeg, hlowFresh⟩ ⟨hlowNeg, hlowFresh⟩ hfirst' hroom2' hr
-  have hfirstFrame := writerAppendThreeRegsProg_frame_high M curJ tmpJ start pref
-    posPolReg freshReg posPolReg freshReg posPolReg freshReg 0 base 0 base 0 base σ
-    hcurJ htmpJ hpos hfresh hpos hfresh hpos hfresh
-    (Or.inl rfl) (Or.inl rfl) (Or.inl rfl)
-    hlowFresh ⟨hlowPos, hlowFresh⟩ ⟨hlowPos, hlowFresh⟩ hs (by omega) hr
-  rw [writerAppendClauseEmptyProg, eval_seq]
-  simpa [σ1] using hsecond.trans hfirstFrame
+  exact writerAppendClauseEmptyProg_frame_both M curJ tmpJ start pref posPolReg negPolReg freshReg base σ hcurJ htmpJ hpos hneg hfresh hlowPos hlowNeg hlowFresh hs hroom (Or.inr hr)
 
 lemma writerAppendClauseThreeProg_eval
     (M curJ tmpJ start : ℕ) (pref : Bits)
