@@ -130,12 +130,12 @@ lemma writerAppendLiteralProg_eval
     rw [hlen]
     omega
 
-lemma writerAppendLiteralProg_frame
+lemma writerAppendLiteralProg_frame_both
     (M curJ tmpJ start : ℕ) (pref : Bits) (polReg varReg : ℕ)
     (varVal : ℕ) (σ : Store) (hcurJ : 1 ≤ curJ) (htmpJ : curJ < tmpJ)
     (hvar : σ varReg = varVal) (hs : WriterState σ M curJ start pref)
     (hroom : start + pref.length + varVal + 2 < M + curJ)
-    (hvarLow : varReg < start) {r : ℕ} (hr : r < start) :
+    (hvarLow : varReg < start) {r : ℕ} (hr : r < start ∨ M + tmpJ < r) :
     (writerAppendLiteralProg curJ tmpJ polReg varReg).eval σ r = σ r := by
   rcases hs with ⟨hroot, hcursor, hbits, hstart, hsafe⟩
   let cur := start + pref.length
@@ -162,12 +162,25 @@ lemma writerAppendLiteralProg_frame
   have hnat := emitNatProg_eval_state curJ tmpJ M (cur + 1)
     (.reg varReg) σ1 hcurJ (by omega) (by omega : curJ ≠ tmpJ)
     hσ1root hσ1cur (by omega) hsep1
-  have hnatframe := hnat.2.2.1 r (by omega) (by omega) (Or.inl (by dsimp [cur]; omega))
+  have hnatframe : (emitNatProg curJ tmpJ (.reg varReg)).eval σ1 r = σ1 r := by
+    rcases hr with hr | hr
+    · exact hnat.2.2.1 r (by omega) (by omega) (Or.inl (by dsimp [cur]; omega))
+    · exact hnat.2.2.1 r (by omega) (by omega)
+        (Or.inr (by simp [Expr.eval, hσ1var]; dsimp [cur]; omega))
   have hbitframe := emitBitProg_frame curJ M cur (.reg polReg) σ hroot hcur
     (by dsimp [cur]; omega) (by dsimp [cur]; omega) r (by omega) (by omega)
   unfold writerAppendLiteralProg
   rw [eval_seq]
   exact hnatframe.trans hbitframe
+
+lemma writerAppendLiteralProg_frame
+    (M curJ tmpJ start : ℕ) (pref : Bits) (polReg varReg : ℕ)
+    (varVal : ℕ) (σ : Store) (hcurJ : 1 ≤ curJ) (htmpJ : curJ < tmpJ)
+    (hvar : σ varReg = varVal) (hs : WriterState σ M curJ start pref)
+    (hroom : start + pref.length + varVal + 2 < M + curJ)
+    (hvarLow : varReg < start) {r : ℕ} (hr : r < start) :
+    (writerAppendLiteralProg curJ tmpJ polReg varReg).eval σ r = σ r := by
+  exact writerAppendLiteralProg_frame_both M curJ tmpJ start pref polReg varReg varVal σ hcurJ htmpJ hvar hs hroom hvarLow (Or.inl hr)
 
 lemma writerAppendLiteralProg_frame_high
     (M curJ tmpJ start : ℕ) (pref : Bits) (polReg varReg : ℕ)
@@ -177,38 +190,7 @@ lemma writerAppendLiteralProg_frame_high
     (hvarLow : varReg < start) {r : ℕ}
     (hr : M + tmpJ < r) :
     (writerAppendLiteralProg curJ tmpJ polReg varReg).eval σ r = σ r := by
-  rcases hs with ⟨hroot, hcursor, hbits, hstart, hsafe⟩
-  let cur := start + pref.length
-  let σ1 := (emitBitProg curJ (.reg polReg)).eval σ
-  have hcur : σ (M + curJ) = cur := by simpa [cur] using hcursor
-  have hσ1root : σ1 0 = M := by
-    rw [show σ1 = (emitBitProg curJ (.reg polReg)).eval σ from rfl]
-    exact emitBitProg_ctl curJ M cur (.reg polReg) σ hcurJ hroot hcur
-      (by dsimp [cur]; omega) (by dsimp [cur]; omega)
-  have hσ1cur : σ1 (M + curJ) = cur + 1 := by
-    rw [show σ1 = (emitBitProg curJ (.reg polReg)).eval σ from rfl]
-    exact emitBitProg_cursor curJ M cur (.reg polReg) σ hroot hcur
-      (by dsimp [cur]; omega) (by dsimp [cur]; omega)
-  have hσ1var : σ1 varReg = varVal := by
-    rw [show σ1 = (emitBitProg curJ (.reg polReg)).eval σ from rfl]
-    rw [emitBitProg_frame curJ M cur (.reg polReg) σ hroot hcur
-      (by dsimp [cur]; omega) (by dsimp [cur]; omega) varReg
-      (by omega) (by omega)]
-    exact hvar
-  have hsep1 : (cur + 1) + (.reg varReg : Expr).eval σ1 < M + curJ := by
-    simp [Expr.eval, hσ1var]
-    dsimp [cur]
-    omega
-  have hnat := emitNatProg_eval_state curJ tmpJ M (cur + 1)
-    (.reg varReg) σ1 hcurJ (by omega) (by omega : curJ ≠ tmpJ)
-    hσ1root hσ1cur (by omega) hsep1
-  have hnatframe := hnat.2.2.1 r (by omega) (by omega)
-    (Or.inr (by simp [Expr.eval, hσ1var]; dsimp [cur]; omega))
-  have hbitframe := emitBitProg_frame curJ M cur (.reg polReg) σ hroot hcur
-    (by dsimp [cur]; omega) (by dsimp [cur]; omega) r (by omega) (by omega)
-  unfold writerAppendLiteralProg
-  rw [eval_seq]
-  exact hnatframe.trans hbitframe
+  exact writerAppendLiteralProg_frame_both M curJ tmpJ start pref polReg varReg varVal σ hcurJ htmpJ hvar hs hroom hvarLow (Or.inr hr)
 
 lemma writerAppendLiteralProg_frame_after
     (M curJ tmpJ start : ℕ) (pref : Bits) (polReg varReg : ℕ)
