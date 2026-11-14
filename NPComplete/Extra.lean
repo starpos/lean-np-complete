@@ -18,6 +18,8 @@ public import NPComplete.Test.ReadmeExample
 public import NPComplete.Test.StageContractExample
 public import NPComplete.Test.LayoutContractExample
 public import NPComplete.Test.LayoutCombinatorExample
+public import NPComplete.Test.StageDisciplineExample
+public import NPComplete.Test.StageBundleExample
 
 /-!
 # Additional build coverage

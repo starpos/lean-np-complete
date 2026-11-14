@@ -85,6 +85,12 @@ def forbidden (c : Cls) : Cls → Bool
 /-- Names of a class that is accounted to the inductive type they are generated for. -/
 def deriveClasses : List Name := [``Repr, ``DecidableEq, ``BEq, ``Inhabited, ``Hashable, ``Ord, ``Nonempty]
 
+/-- Lemmas that `simp` and `unfold` realize on demand under the name of a definition. -/
+def isRealizedSuffix (s : String) : Bool :=
+  ["eq_def", "eq_unfold", "congr_simp", "induct", "fun_cases", "functional_induction"].contains s
+    || s.startsWith "eq_" && (s.drop 3).all Char.isDigit && s.length > 3
+    || s.startsWith "hcongr_" || s.startsWith "congr_simp"
+
 /-- Helpers that `deriving` and the `inductive` command generate under the type's name. -/
 def isDeriveHelper (s : String) : Bool :=
   ["ctorElim", "ctorElimType", "noConfusionType", "noConfusion", "sizeOf_spec", "_sizeOf_1"].contains s
@@ -95,7 +101,7 @@ def isDeriveHelper (s : String) : Bool :=
 generated helpers of an inductive type map to the type, the instances that `deriving` creates map
 to the type they are for, and generated auxiliary definitions map to the declaration they come
 from. -/
-def accountOwner (env : Environment) (c : Name) : Name :=
+partial def accountOwner (env : Environment) (c : Name) : Name :=
   let u := NPComplete.ApiLayer.layerCheckName c
   if isPrivateName c && u.isInternalDetail then NPComplete.ApiLayer.stripInternal u
   else
@@ -118,9 +124,11 @@ def accountOwner (env : Environment) (c : Name) : Name :=
     | none =>
       match c with
       | .str p s =>
-        match env.find? p with
-        | some (.inductInfo _) => if isDeriveHelper s then p else c
-        | _ => c
+        if isRealizedSuffix s && (env.find? p).isSome then accountOwner env p
+        else
+          match env.find? p with
+          | some (.inductInfo _) => if isDeriveHelper s then p else c
+          | _ => c
       | _ => c
 
 /-- Is the declaration inside the checked scope?  The scope is the given namespaces, or, for an empty
