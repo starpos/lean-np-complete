@@ -41,6 +41,19 @@ should_fail=(
   "NPCompleteTest/ShouldFail/DecideFalse.lean:proved that the proposition"
   "NPCompleteTest/ShouldFail/PlainImportSimp.lean:_mutual"
   'NPCompleteTest/ShouldFail/UntaggedInstance.lean:instance `NPComplete.Test.arbitraryInstanceName` for public type `NPComplete.Test.InstanceFixture` is untagged'
+  'NPCompleteTest/ShouldFail/StageBuildsStore.lean:builds a `Store` by a lambda'
+  'NPCompleteTest/ShouldFail/StageConcreteStore.lean:a closed `Store` passed as an argument'
+  'NPCompleteTest/ShouldFail/StageImplEval.lean:mentions stage_impl `NPCompleteTest.Final.StageFix.bump_eval`'
+  'NPCompleteTest/ShouldFail/StageMentionsUnclassified.lean:mentions unclassified `NPCompleteTest.ShouldFail.StageMentionsUnclassified.hidden`'
+  'NPCompleteTest/ShouldFail/StageNumAssign.lean:a numeric register in the target of `Program.assign`'
+  'NPCompleteTest/ShouldFail/StageNumAssignInd.lean:a numeric address in `Program.assignInd`'
+  'NPCompleteTest/ShouldFail/StageNumReg.lean:a numeric register in `Expr.reg`'
+  'NPCompleteTest/ShouldFail/StageNumTree.lean:has a numeric register in the target of `Program.assign`'
+  'NPCompleteTest/ShouldFail/StageStoreNumeral.lean:a numeral applied to a `Store`'
+  'NPCompleteTest/ShouldFail/StageStoreNumeralHelper.lean:a numeral applied to a `Store`'
+  'NPCompleteTest/ShouldFail/StageStoreNumeralStmt.lean:a numeral applied to a `Store`'
+  "NPCompleteTest/ShouldFail/StageUnclassified.lean:is not classified"
+  'NPCompleteTest/ShouldFail/StageWriteReg.lean:mentions the raw store operation `NPComplete.BoundedWhile.writeReg`'
 )
 for entry in "${should_fail[@]}"; do
   f=${entry%%:*}; needle=${entry#*:}
