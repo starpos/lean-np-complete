@@ -34,6 +34,7 @@ public import NPComplete.BoundedWhile.RegLayout
 public import NPComplete.RAMToTM.Generic.Api.StageSpec
 public import NPComplete.RAMToTM.Generic.Api.StageComp
 public import NPComplete.RAMToTM.Generic.Api.LayoutSpec
+public import NPComplete.RAMToTM.Generic.Api.LayoutCombinators
 
 /-!
 This umbrella gives clients a single import for the library's Cook-Levin, SAT, and 3-SAT results.
