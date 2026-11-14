@@ -41,6 +41,8 @@ should_fail=(
   "NPCompleteTest/ShouldFail/DecideFalse.lean:proved that the proposition"
   "NPCompleteTest/ShouldFail/PlainImportSimp.lean:_mutual"
   'NPCompleteTest/ShouldFail/UntaggedInstance.lean:instance `NPComplete.Test.arbitraryInstanceName` for public type `NPComplete.Test.InstanceFixture` is untagged'
+  'NPCompleteTest/ShouldFail/StageAdapterBoundary.lean:mentions stage_adapter `NPComplete.RAMToTM.LayoutStage.ofSpec`'
+  'NPCompleteTest/ShouldFail/StageRawEntry.lean:mentions the raw store operation `NPComplete.RAMToTM.LayoutSpec.assign`'
   'NPCompleteTest/ShouldFail/StageBuildsStore.lean:builds a `Store` by a lambda'
   'NPCompleteTest/ShouldFail/StageConcreteStore.lean:a closed `Store` passed as an argument'
   'NPCompleteTest/ShouldFail/StageImplEval.lean:mentions stage_impl `NPCompleteTest.Final.StageFix.bump_eval`'

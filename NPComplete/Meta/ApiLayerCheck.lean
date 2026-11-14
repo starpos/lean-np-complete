@@ -2,6 +2,7 @@ module
 
 public meta import Lean.Elab.Command
 public meta import NPComplete.Meta.ApiLayer
+public meta import NPComplete.Meta.StageDiscipline
 
 /-!
 # Checker for the API layering

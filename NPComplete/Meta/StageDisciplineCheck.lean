@@ -13,10 +13,12 @@ under namespace `A` or `B`.  Each such declaration must carry exactly one of the
 
 * `stage_layout` and `stage_impl` declarations are not restricted: they are the places that own the
   register numbers and the raw semantics.
-* `stage_contract` declarations are the published contracts of an implementation.  Only the
-  statement (the type, and the body of a definition) is checked, like a boundary; the proof is free.
+* `stage_contract` declarations are the published contracts of an implementation.  The statement
+  is checked like a boundary; the proof of a lemma is free.  A contract that is a definition (a
+  bundled stage) is judged by its data: the proofs it carries are not read.
 * `stage_boundary` declarations (facts, programs written against a layout, compositions) are
-  checked in the type, in the body and in proofs.
+  checked in the type and in the body.  The body of a lemma is read in full; the proofs that a
+  definition carries are not.
 
 A checked declaration must not
 1. contain a register number: a numeric literal as the register of `Expr.reg`, as the target of
@@ -69,9 +71,12 @@ def clsAttrs : List (Cls × TagAttribute) :=
 def classesOf (env : Environment) (n : Name) : List Cls :=
   clsAttrs.filterMap fun (c, a) => if a.hasTag env n then some c else none
 
-/-- Classes that a declaration of the given class must not mention. -/
+/-- Classes that a declaration of the given class must not mention.  An adapter, which imports a
+raw program and its proof into a bundled stage, is usable from the implementation side: the
+implementation and the published contract of a stage. -/
 def forbidden (c : Cls) : Cls → Bool
-  | .impl | .adapter => c == .boundary || c == .contract
+  | .impl => c == .boundary || c == .contract
+  | .adapter => c == .boundary
   | _ => false
 
 /-- Names of a class that is accounted to the inductive type they are generated for. -/
@@ -168,9 +173,21 @@ def isRaw (c : Name) : Bool :=
         | .str _ s => ["eval_", "loopEval_", "scanListEval_"].any (s.startsWith ·)
         | _ => false))
 
-abbrev M := StateRefT (Array String) MetaM
+/-- What a traversal collects: the violations found in the shape of the term, and the constants
+occurring outside the proofs that were skipped. -/
+structure St where
+  found : Array String := #[]
+  consts : NameSet := {}
 
-def note (s : String) : M Unit := modify fun a => if a.contains s then a else a.push s
+abbrev M := StateRefT St MetaM
+
+def note (s : String) : M Unit :=
+  modify fun st => if st.found.contains s then st else { st with found := st.found.push s }
+
+def record (c : Name) : M Unit := modify fun st => { st with consts := st.consts.insert c }
+
+def isProofSafe (e : Expr) : M Bool := do
+  try Meta.isProof e catch _ => pure false
 
 /-- Number-of-register positions of an application `fn args`. -/
 def checkRegPositions (fn : Expr) (args : Array Expr) : M Unit := do
@@ -210,29 +227,29 @@ def checkStorePositions (fn : Expr) (args : Array Expr) : M Unit := do
       if ty.isForall && isStoreType ty.bindingDomain! then
         note "a closed `Store` passed as an argument"
 
-partial def visit (e : Expr) : M Unit := do
+/-- Walk a term.  With `skip`, the proof arguments are not visited: a data-valued definition is
+judged by its data, not by the proofs it carries. -/
+partial def visit (skip : Bool) (e : Expr) : M Unit := do
   match e with
-  | .lam n t b bi => visit t; withLocalDecl n bi t fun x => visit (b.instantiate1 x)
-  | .forallE n t b bi => visit t; withLocalDecl n bi t fun x => visit (b.instantiate1 x)
+  | .const c _ => record c
+  | .lam n t b bi =>
+    visit skip t; withLocalDecl n bi t fun x => visit skip (b.instantiate1 x)
+  | .forallE n t b bi =>
+    visit skip t; withLocalDecl n bi t fun x => visit skip (b.instantiate1 x)
   | .letE n t v b _ =>
-    visit t; visit v
-    withLetDecl n t v fun x => visit (b.instantiate1 x)
-  | .mdata _ b => visit b
-  | .proj _ _ b => visit b
+    visit skip t; visit skip v
+    withLetDecl n t v fun x => visit skip (b.instantiate1 x)
+  | .mdata _ b => visit skip b
+  | .proj _ _ b => visit skip b
   | .app .. =>
     let fn := e.getAppFn
     let args := e.getAppArgs
     checkRegPositions fn args
     checkStorePositions fn args
-    unless fn.isConst || fn.isFVar do visit fn
-    for a in args do visit a
+    visit skip fn
+    for a in args do
+      unless skip && (← isProofSafe a) do visit skip a
   | _ => pure ()
-
-/-- Constants of `e`, with generated auxiliary declarations mapped to their source. -/
-def usedOwners (env : Environment) (e : Expr) : Array Name :=
-  e.getUsedConstants.foldl (fun (acc : Array Name) c =>
-    let d := accountOwner env c
-    if acc.contains d then acc else acc.push d) #[]
 
 /-- Does the body build a `Store` by a lambda: a definition whose result type is `Store`? -/
 def buildsStore (ty value : Expr) : Bool :=
@@ -266,15 +283,22 @@ def partsOf (env : Environment) (n : Name) (c : Cls) : Array (String × Expr) :=
         ps := ps.push ("body", b)
   return ps
 
+/-- Classes of a constant occurring in a term: its own and those of the declaration it belongs to. -/
+def classesOfUse (env : Environment) (c d : Name) : List Cls :=
+  let cs := classesOf env c ++ classesOf env d
+  cs.foldl (fun acc x => if acc.contains x then acc else acc ++ [x]) []
+
 /-- Violations of the discipline for the declaration `n` of class `c`. -/
 def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
     MetaM (Array String) := do
   let disp := NPComplete.ApiLayer.layerCheckName n
   let mut out : Array String := #[]
   if c == .layout || c == .impl || c == .adapter then return out
+  let isDef := (env.find? n).any fun ci => ci matches .defnInfo _
   for (where_, e) in partsOf env n c do
-    let (_, found) ← (visit e).run #[]
-    for f in found do
+    let skip := isDef && where_ == "body"
+    let ((), st) ← (visit skip e).run {}
+    for f in st.found do
       out := out.push s!"{c.toString} declaration `{disp}` has {f} in its {where_}"
     if where_ == "body" then
       let ci := (env.find? n).get!
@@ -282,20 +306,22 @@ def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
         if buildsStore d.type e then
           out := out.push s!"{c.toString} declaration `{disp}` builds a `Store` by a lambda"
     let mut seen : NameSet := {}
-    for d in usedOwners env e do
-      if NPComplete.ApiLayer.layerCheckName d == disp || seen.contains d then continue
-      seen := seen.insert d
+    for raw in st.consts.toList.toArray.qsort Name.lt do
+      let d := accountOwner env raw
       let dd := NPComplete.ApiLayer.layerCheckName d
+      if dd == disp || seen.contains d then continue
+      seen := seen.insert d
       if isRaw dd then
         out := out.push s!"{c.toString} declaration `{disp}` mentions the raw store operation `{dd}` in its {where_}"
       else
-        match classesOf env d with
+        match classesOfUse env raw d with
         | [] =>
           if inNs nss d then
             out := out.push s!"{c.toString} declaration `{disp}` mentions unclassified `{dd}` in its {where_}"
         | cs =>
           if cs.any (forbidden c) then
-            out := out.push s!"{c.toString} declaration `{disp}` mentions {", ".intercalate (cs.map Cls.toString)} `{dd}` in its {where_}"
+            let what := NPComplete.ApiLayer.layerCheckName raw
+            out := out.push s!"{c.toString} declaration `{disp}` mentions {", ".intercalate (cs.map Cls.toString)} `{what}` in its {where_}"
   return out
 
 syntax (name := checkStageDiscipline) "#check_stage_discipline" (&"ns" (ppSpace ident)+)? : command
