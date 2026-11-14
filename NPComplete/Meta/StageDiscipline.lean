@@ -20,6 +20,10 @@ checked scope therefore carries one of three tags, and `#check_stage_discipline`
 * `stage_boundary`: facts, programs written against a layout and compositions of contracts.  They
   never mention register numbers, concrete stores or implementation internals.
 
+`stage_unchecked` marks a declaration that is deliberately outside the discipline (a legacy stage
+that has not been migrated, or the glue to it).  It is a visible, greppable exemption: it
+satisfies the classification requirement but no other class may mention it.
+
 `stage_adapter` marks a library entry that imports a raw program and its proof into a bundled
 stage.  Only an implementation declaration may use it.
 
@@ -52,5 +56,9 @@ initialize stageBoundaryAttr : TagAttribute ←
 initialize stageAdapterAttr : TagAttribute ←
   registerTagAttribute `stage_adapter
     "Entry that imports a raw program and its proof into a bundled stage; usable only from `stage_impl` declarations."
+
+initialize stageUncheckedAttr : TagAttribute ←
+  registerTagAttribute `stage_unchecked
+    "Declaration outside the stage discipline (not migrated); never mentioned by a boundary or a contract."
 
 end NPComplete.StageDiscipline

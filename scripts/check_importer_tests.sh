@@ -43,6 +43,8 @@ should_fail=(
   'NPCompleteTest/ShouldFail/UntaggedInstance.lean:instance `NPComplete.Test.arbitraryInstanceName` for public type `NPComplete.Test.InstanceFixture` is untagged'
   'NPCompleteTest/ShouldFail/StageAdapterBoundary.lean:mentions stage_adapter `NPComplete.RAMToTM.LayoutStage.ofSpec`'
   'NPCompleteTest/ShouldFail/StageRawEntry.lean:mentions the raw store operation `NPComplete.RAMToTM.LayoutSpec.assign`'
+  'NPCompleteTest/ShouldFail/StageUncheckedMention.lean:mentions stage_unchecked `NPCompleteTest.ShouldFail.StageUncheckedMention.legacy`'
+  'NPCompleteTest/ShouldFail/StageEvalLemma.lean:mentions the raw store operation `NPComplete.BoundedWhile.eval_seq`'
   'NPCompleteTest/ShouldFail/StageBuildsStore.lean:builds a `Store` by a lambda'
   'NPCompleteTest/ShouldFail/StageConcreteStore.lean:a closed `Store` passed as an argument'
   'NPCompleteTest/ShouldFail/StageImplEval.lean:mentions stage_impl `NPCompleteTest.Final.StageFix.bump_eval`'

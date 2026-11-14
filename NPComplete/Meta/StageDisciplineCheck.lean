@@ -8,7 +8,8 @@ public meta import NPComplete.Meta.ApiLayerCheck
 # Checker for the stage discipline
 
 `#check_stage_discipline ns A B` checks every declaration of the current module whose name lies
-under namespace `A` or `B`.  Each such declaration must carry exactly one of the tags of
+under namespace `A` or `B`; `#check_stage_discipline all` checks every declaration of the current
+module.  Each such declaration must carry exactly one of the tags of
 `StageDiscipline.lean`, and the tag decides what it may mention.
 
 * `stage_layout` and `stage_impl` declarations are not restricted: they are the places that own the
@@ -25,8 +26,8 @@ A checked declaration must not
    `Program.assign`, `Program.lookup` and `Program.scanList`, as the whole address of
    `Program.assignInd` or `Expr.regInd`, or as the argument of a `Store`.  Data values (`.const 2`),
    iteration counts and numbers elsewhere are allowed;
-2. mention `writeReg`, `emptyStore`, `bitInputStore`, the evaluation function of programs or one of
-   its unfolding lemmas, build a `Store` by a lambda, or pass a closed `Store` to a function;
+2. mention `writeReg`, `emptyStore`, `bitInputStore`, an unfolding lemma of the evaluation function
+   (`eval_seq` and the like), a raw contract entry (`StageSpec.assign`, `LayoutSpec.of_direct`, ...), build a `Store` by a lambda, or pass a closed `Store` to a function;
 3. mention a `stage_impl` or `stage_adapter` declaration, or an in-scope declaration that carries no
    tag.
 
@@ -54,6 +55,7 @@ inductive Cls where
   | contract
   | boundary
   | adapter
+  | unchecked
   deriving BEq, Inhabited
 
 def Cls.toString : Cls → String
@@ -62,10 +64,11 @@ def Cls.toString : Cls → String
   | .contract => "stage_contract"
   | .boundary => "stage_boundary"
   | .adapter => "stage_adapter"
+  | .unchecked => "stage_unchecked"
 
 def clsAttrs : List (Cls × TagAttribute) :=
   [(.layout, stageLayoutAttr), (.impl, stageImplAttr), (.contract, stageContractAttr),
-    (.boundary, stageBoundaryAttr), (.adapter, stageAdapterAttr)]
+    (.boundary, stageBoundaryAttr), (.adapter, stageAdapterAttr), (.unchecked, stageUncheckedAttr)]
 
 /-- All classes a declaration carries; a well-formed declaration carries one. -/
 def classesOf (env : Environment) (n : Name) : List Cls :=
@@ -75,7 +78,7 @@ def classesOf (env : Environment) (n : Name) : List Cls :=
 raw program and its proof into a bundled stage, is usable from the implementation side: the
 implementation and the published contract of a stage. -/
 def forbidden (c : Cls) : Cls → Bool
-  | .impl => c == .boundary || c == .contract
+  | .impl | .unchecked => c == .boundary || c == .contract
   | .adapter => c == .boundary
   | _ => false
 
@@ -120,16 +123,19 @@ def accountOwner (env : Environment) (c : Name) : Name :=
         | _ => c
       | _ => c
 
-/-- Is the name under one of the namespaces? -/
-def inNs (nss : Array Name) (n : Name) : Bool :=
-  let n := NPComplete.ApiLayer.layerCheckName n
-  nss.any fun ns => ns.isPrefixOf n
+/-- Is the declaration inside the checked scope?  The scope is the given namespaces, or, for an empty
+list (`all`), the module being elaborated. -/
+def inNs (env : Environment) (nss : Array Name) (n : Name) : Bool :=
+  if nss.isEmpty then (env.getModuleIdxFor? n).isNone
+  else
+    let n := NPComplete.ApiLayer.layerCheckName n
+    nss.any fun ns => ns.isPrefixOf n
 
 /-- The declarations of the current module that the check covers. -/
 def scopeOf (env : Environment) (nss : Array Name) : Array Name :=
   let all := env.constants.map₂.foldl (fun (acc : Array Name) n _ => acc.push n) #[]
   (all.filter fun n =>
-    inNs nss n && !n.isInternalDetail && accountOwner env n == n
+    inNs env nss n && !n.isInternalDetail && accountOwner env n == n
       && !(isAuxRecursor env n) && !(isNoConfusion env n)).qsort Name.lt
 
 /-! ### Syntactic checks -/
@@ -158,14 +164,15 @@ def isConstNumeral (e : Expr) : Bool :=
 def isStoreType (t : Expr) : Bool :=
   t.consumeMData.isConstOf `NPComplete.BoundedWhile.Store
 
-/-- Raw semantics of stores and programs, and the contract entries whose obligations are stated on
-raw stores; only an implementation may use them. -/
+/-- Raw store operations, the unfolding lemmas of the evaluation function, and the contract entries
+whose obligations are stated on raw stores; only an implementation may use them.  The evaluation
+functions `Program.eval` and `Expr.eval` themselves are the semantics that every contract
+statement is about, so mentioning them is allowed. -/
 def isRaw (c : Name) : Bool :=
   let bw := `NPComplete.BoundedWhile
   let rm := `NPComplete.RAMToTM
   let direct : List Name :=
-    [`writeReg, `writeReg_same, `writeReg_diff, `emptyStore, `bitInputStore, `Program.eval,
-      `Expr.eval, `loopEval, `scanListEval, `StageSpec.of_avoids, `StageSpec.of_writesIn,
+    [`writeReg, `writeReg_same, `writeReg_diff, `emptyStore, `bitInputStore, `StageSpec.of_avoids, `StageSpec.of_writesIn,
       `StageSpec.assign, `LayoutSpec.of_direct, `LayoutSpec.assign, `LayoutSpec.assignCell]
   (direct.any fun d => c == bw ++ d || c == rm ++ d) ||
     ((bw.isPrefixOf c || rm.isPrefixOf c) &&
@@ -293,7 +300,7 @@ def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
     MetaM (Array String) := do
   let disp := NPComplete.ApiLayer.layerCheckName n
   let mut out : Array String := #[]
-  if c == .layout || c == .impl || c == .adapter then return out
+  if c == .layout || c == .impl || c == .adapter || c == .unchecked then return out
   let isDef := (env.find? n).any fun ci => ci matches .defnInfo _
   for (where_, e) in partsOf env n c do
     let skip := isDef && where_ == "body"
@@ -316,7 +323,7 @@ def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
       else
         match classesOfUse env raw d with
         | [] =>
-          if inNs nss d then
+          if inNs env nss d then
             out := out.push s!"{c.toString} declaration `{disp}` mentions unclassified `{dd}` in its {where_}"
         | cs =>
           if cs.any (forbidden c) then
@@ -324,22 +331,25 @@ def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
             out := out.push s!"{c.toString} declaration `{disp}` mentions {", ".intercalate (cs.map Cls.toString)} `{what}` in its {where_}"
   return out
 
-syntax (name := checkStageDiscipline) "#check_stage_discipline" (&"ns" (ppSpace ident)+)? : command
-
-@[command_elab checkStageDiscipline] def elabCheckStageDiscipline : CommandElab := fun stx => do
+def runCheck (stx : Syntax) (nss : Array Name) : CommandElabM Unit := do
   let env ← getEnv
-  let nss : Array Name := if stx[1].getArgs.isEmpty then #[] else
-    stx[1][1].getArgs.map (·.getId)
-  if nss.isEmpty then
-    logErrorAt stx "`#check_stage_discipline` needs `ns` followed by at least one namespace"
-    return
   for n in scopeOf env nss do
     let disp := NPComplete.ApiLayer.layerCheckName n
     match classesOf env n with
-    | [] => logErrorAt stx s!"declaration `{disp}` is not classified (stage_layout, stage_impl, stage_contract or stage_boundary)"
+    | [] => logErrorAt stx s!"declaration `{disp}` is not classified (stage_layout, stage_impl, stage_contract, stage_boundary, stage_adapter or stage_unchecked)"
     | [c] =>
       let vs ← liftTermElabM (violationsOf env nss n c)
       for v in vs do logErrorAt stx v
     | cs => logErrorAt stx s!"declaration `{disp}` carries more than one classification: {", ".intercalate (cs.map Cls.toString)}"
+
+syntax (name := checkStageDisciplineNs) "#check_stage_discipline " &"ns" (ppSpace ident)+ : command
+
+@[command_elab checkStageDisciplineNs] def elabCheckStageDisciplineNs : CommandElab := fun stx =>
+  runCheck stx (stx[2].getArgs.map (·.getId))
+
+syntax (name := checkStageDisciplineAll) "#check_stage_discipline " &"all" : command
+
+@[command_elab checkStageDisciplineAll] def elabCheckStageDisciplineAll : CommandElab := fun stx =>
+  runCheck stx #[]
 
 end NPComplete.StageDiscipline
