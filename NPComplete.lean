@@ -30,8 +30,10 @@ public import NPComplete.RAMToTM.Generic.PeriodicCounter
 public import NPComplete.BoundedWhile.Frame
 public import NPComplete.BoundedWhile.WritesIn
 public import NPComplete.BoundedWhile.StoreFact
+public import NPComplete.BoundedWhile.RegLayout
 public import NPComplete.RAMToTM.Generic.Api.StageSpec
 public import NPComplete.RAMToTM.Generic.Api.StageComp
+public import NPComplete.RAMToTM.Generic.Api.LayoutSpec
 
 /-!
 This umbrella gives clients a single import for the library's Cook-Levin, SAT, and 3-SAT results.
