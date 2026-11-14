@@ -15,6 +15,7 @@ public import NPComplete.Test.ApiLayersNegative
 public import NPComplete.Test.ApiLayersOutsideUmbrella
 public import NPComplete.Test.StableApi
 public import NPComplete.Test.ReadmeExample
+public import NPComplete.Test.StageContractExample
 
 /-!
 # Additional build coverage
