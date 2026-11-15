@@ -329,7 +329,9 @@ The program constructors that take register numbers (`RAMToTM.writeUnaryProgAt`
 `periodicCounterProg` `forwardCopyProg` `readUnaryProgAt` `SAT.decodeLiteralValueProgramAt`) have
 layout wrappers (`writeUnaryProgAtL` `periodicCounterProgL` `forwardCopyProgL` `readUnaryProgAtL`
 `decodeLiteralValueProgramAtL`) that take the registers as roles and restate their contracts in
-those roles.  Stage code calls the wrappers; the raw constructors stay on the implementation side.
+those roles.  Stage code calls the wrappers and the wrapper's restated contracts; the raw
+constructors and the raw constructors' own contract lemmas stay on the implementation side, and
+the checker below rejects both from a boundary or a contract.
 
 **Writing discipline.**  Every change that leaked outside its stage broke one of these rules; the
 checker below enforces the first four.
@@ -357,9 +359,11 @@ covered by a `stage_default boundary` / `stage_default contract` registered for 
 (lenient classes must be spelled `stage_default_free`, so a relaxed scope is always visible in the
 source).  A checked declaration may not contain register numbers or concrete stores, mention raw
 semantics (`writeReg`, evaluation unfolding lemmas, raw contract entries), call a raw constructor
-even with role arguments, or mention an implementation-classified declaration.  A layout
-accessor, a fact, a contract and a layout wrapper are boundaries of the check: they are classified
-once where they are defined and never opened elsewhere.
+or one of its own contract lemmas even with role arguments (the checker treats every declaration
+whose statement shows a raw constructor's program as raw), or mention an
+implementation-classified declaration.  A layout accessor, a fact, a contract, a layout wrapper
+and the wrapper's restated contracts are boundaries of the check: they are classified once where
+they are defined and never opened elsewhere.
 
 **Hiding stage programs.**  A stage program can be defined without `@[expose]` (in a
 `public section`), so importers cannot unfold it; publish its contract, `ScanFree` and resource
