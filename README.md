@@ -226,6 +226,10 @@ compatibility guarantee.
   requires it. Ordinary users do not need to handle `RAM` `Instruction` `Bank` `run` directly.
   `bitLen` appears only when writing an upper bound for an operand bound (for example, through
   `bitLen_le_succ` in the external usage example below).
+  The stage-contract layer (`RegLayout`, `StageSpec`, `LayoutSpec`, `LayoutStage` and their
+  combinators, and the layout wrappers of the program constructors listed below) is construction
+  API; see [Stage contracts and the stage discipline](#stage-contracts-and-the-stage-discipline)
+  below.
 - **Internal**: emitters, the ABI (`WriteLog` `OutputSlice` `ReductionOutput`), `depairProg` and
   its placement/layout constants, plus SAT-specific lemmas.
 
@@ -263,11 +267,16 @@ resource and store obligations:
 - `RAMToTM.BitsFrom` describes bits stored from a given cell, useful for verifier and producer
   correctness proofs.
 - `RAMToTM.readUnaryProgAt` reads unary data with initialized counters; `decodeUnaryProgAt` is the
-  lower-level reader. `SAT.decodeLiteralValueProgramAt` reads an encoded literal's value.
-- `RAMToTM.writeUnaryProgAt` writes a unary encoding at a cursor, with correctness, frame and resource bounds.
-- `RAMToTM.periodicCounterProg` advances a counter and a bounded phase, with correctness, frame and resource contracts.
+  lower-level reader. `SAT.decodeLiteralValueProgramAt` reads an encoded literal's value. Their
+  layout wrappers `readUnaryProgAtL` and `decodeLiteralValueProgramAtL` take the registers as
+  roles of a `RegLayout`.
+- `RAMToTM.writeUnaryProgAt` writes a unary encoding at a cursor, with correctness, frame and
+  resource bounds; its layout wrapper is `writeUnaryProgAtL`.
+- `RAMToTM.periodicCounterProg` advances a counter and a bounded phase, with correctness, frame
+  and resource contracts; its layout wrapper is `periodicCounterProgL`.
 - `RAMToTM.forwardCopyProg` moves an input region to a higher, non-overlapping destination while
-  preserving the source, providing workspace for a verifier or producer.
+  preserving the source, providing workspace for a verifier or producer; its layout wrapper is
+  `forwardCopyProgL`.
 - `RAMToTM.SameOff`, `BX` and `Comp` express frame, bounded Boolean-expression and computation
   contracts. `forCnt` / `CntStep` support indexed loops, and `accAll` / `AccStep` support
   conjunction scans; their lemmas establish correctness and boundedness under their hypotheses.
@@ -296,6 +305,72 @@ reduction structure. Build one from a producer with `PolyTimeReduction.of_forwar
 a TM2 computation with Boolean output connects to TM0 via `TM2ComputableInPolyTime.toTM0`.
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for practical notes on writing verifiers and reduction producers.
+
+### Stage contracts and the stage discipline
+
+A reduction producer assigns jobs to registers and memory cells.  In the naive style a register
+number appears in the program bodies, in the stage contracts and in the frame proofs, so one
+number change breaks everything at once.  The stage-contract layer keeps every number in one
+place, and a stage's neighbours work from its contract without opening its program.
+
+**Vocabulary.**  A *role type* is an inductive type listing the jobs registers do in the
+construction.  A *register layout* `RegLayout Role` embeds the roles into registers below `top`, so
+`R.reg role` is the register of a role and `R.reg_injective` / `R.reg_ne` supply distinctness.  A
+stage contract says what one program does to a store:
+
+- `StageSpec B P p W Q`: from a store satisfying `P`, `p` reaches `Q`, agrees with the start
+  outside the reserved footprint `W`, and stays within the resource bound `B`;
+- `LayoutSpec R B P p W Q` states the same over roles, so a statement names roles and facts and
+  never a raw store; `LayoutStage R B p P Q W` packages it with the program, the facts and the
+  footprint as indices, so stages compose (`seq` `frame` `weaken` `forNConst` `forNReg`) by
+  naming facts and footprints.  `LayoutStage.ofSpec` imports a contract proved on raw stores.
+
+The program constructors that take register numbers (`RAMToTM.writeUnaryProgAt`
+`periodicCounterProg` `forwardCopyProg` `readUnaryProgAt` `SAT.decodeLiteralValueProgramAt`) have
+layout wrappers (`writeUnaryProgAtL` `periodicCounterProgL` `forwardCopyProgL` `readUnaryProgAtL`
+`decodeLiteralValueProgramAtL`) that take the registers as roles and restate their contracts in
+those roles.  Stage code calls the wrappers; the raw constructors stay on the implementation side.
+
+**Writing discipline.**  Every change that leaked outside its stage broke one of these rules; the
+checker below enforces the first four.
+
+1. Never write a register number outside the layout: stage programs take roles, and the layout is
+   the one place where a role becomes a register.
+2. Define each program in one place and refer to it by name; do not rebuild its syntax in another
+   declaration.
+3. Do not put program internals (equations that unfold `eval` on the program's syntax) into a
+   contract; derive such equations from the published contract instead.
+4. Write stage boundaries as named facts (`LayoutFact`) and compose contracts by naming the facts
+   and footprints.
+5. (Guidance, not enforced.)  Facts a loop never uses are framed outside the loop rather than
+   carried in its invariant.
+
+**Checking the discipline.**  `#check_stage_discipline ns A B ...` (or `#check_stage_discipline
+all`) is the command of `NPComplete.Meta.StageDisciplineCheck` (import it with
+`meta import`, together with `NPComplete.Meta.StageDiscipline`); it turns violations of rules 1–4
+in the named scope into build errors.  Every declaration of the scope carries exactly one
+classification — `stage_layout` (the numbers and their accessors), `stage_impl` (program
+definitions, evaluation formulas, raw proofs), `stage_contract` (the published contracts),
+`stage_boundary` (facts, programs written against a layout, compositions), `stage_adapter` (the
+entry that imports a raw contract) or `stage_unchecked` (a visible, greppable exemption) — or is
+covered by a `stage_default boundary` / `stage_default contract` registered for its namespace
+(lenient classes must be spelled `stage_default_free`, so a relaxed scope is always visible in the
+source).  A checked declaration may not contain register numbers or concrete stores, mention raw
+semantics (`writeReg`, evaluation unfolding lemmas, raw contract entries), call a raw constructor
+even with role arguments, or mention an implementation-classified declaration.  A layout
+accessor, a fact, a contract and a layout wrapper are boundaries of the check: they are classified
+once where they are defined and never opened elsewhere.
+
+**Hiding stage programs.**  A stage program can be defined without `@[expose]` (in a
+`public section`), so importers cannot unfold it; publish its contract, `ScanFree` and resource
+lemmas from the same module instead of equations that tie the program to its syntax.  This holds
+for module importers only — a non-module importer and `import all` see the body regardless — and
+contract proofs and evaluation formulas stay in `stage_impl`, which the checker does not read.
+
+**One layout per producer.**  Give a whole producer one register layout rather than one layout per
+stage: every register then lives in a single embedding, a collision fails the injectivity check at
+the layout, `top` is the true top of the allocation, and stages are separated by role distinctness
+instead of per-pair non-overlap lemmas.
 
 ### External usage example
 
