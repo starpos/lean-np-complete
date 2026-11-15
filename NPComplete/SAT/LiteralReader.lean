@@ -157,13 +157,17 @@ lemma decodeLiteralValueProgramAt_bound_frame
   simp [ScanFree, decodeLiteralValueProgramAt, readBitAdvanceProg,
     decodeUnaryProgAt, decodeUnaryStep]
 
-@[construction_api] lemma programBoundedIn_decodeLiteralValueProgramAt_of_bounds
+/-- **Local-bounds body.** `programBoundedIn_decodeLiteralValueProgramAt_of_bounds` with the
+store hypothesis replaced by the bound on the one cell whose value enters an operand: the
+`regInd` address cell `cursorReg`.  `StoreValuesLe` is not needed for any other cell
+(`ProgramBoundedIn` never bounds a read cell's value). -/
+@[construction_api] lemma programBoundedIn_decodeLiteralValueProgramAt_of_local_bounds
     (B cursorReg polReg varReg doneReg boundReg : ℕ) (σ : Store)
     (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ boundReg ≤ B)
     (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
       varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
       boundReg ≠ varReg ∧ boundReg ≠ doneReg)
-    (hB1 : 1 ≤ B) (hσ : StoreValuesLe B σ)
+    (hB1 : 1 ≤ B) (hcur : σ cursorReg ≤ B)
     (hcursor : σ cursorReg + 1 + σ boundReg ≤ B) :
     ProgramBoundedIn B σ
       (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg) := by
@@ -176,7 +180,7 @@ lemma decodeLiteralValueProgramAt_bound_frame
       (.assign polReg (.regInd (.reg cursorReg))) := by
     refine ⟨hidx.2.1, ?_⟩
     simp only [ExprBoundedIn, Expr.eval]
-    exact ⟨hidx.1, hσ cursorReg⟩
+    exact ⟨hidx.1, hcur⟩
   have hcursor1 : σ1 cursorReg = σ cursorReg := by
     simp [σ1, eval_assign, Expr.eval,
       writeReg_diff σ polReg _ cursorReg hcp]
@@ -227,6 +231,21 @@ lemma decodeLiteralValueProgramAt_bound_frame
   refine ⟨hpVar, ?_⟩
   rw [show (Program.assign varReg (.const 0)).eval σr = σ2 from rfl]
   exact ⟨hpDone, hpDecode⟩
+
+/-- Wrapper over `programBoundedIn_decodeLiteralValueProgramAt_of_local_bounds` at a global
+store bound: `StoreValuesLe` supplies the one local bound the body needs. -/
+@[construction_api] lemma programBoundedIn_decodeLiteralValueProgramAt_of_bounds
+    (B cursorReg polReg varReg doneReg boundReg : ℕ) (σ : Store)
+    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ boundReg ≤ B)
+    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
+      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
+      boundReg ≠ varReg ∧ boundReg ≠ doneReg)
+    (hB1 : 1 ≤ B) (hσ : StoreValuesLe B σ)
+    (hcursor : σ cursorReg + 1 + σ boundReg ≤ B) :
+    ProgramBoundedIn B σ
+      (decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg) :=
+  programBoundedIn_decodeLiteralValueProgramAt_of_local_bounds B cursorReg polReg varReg doneReg
+    boundReg σ hidx hdist hB1 (hσ cursorReg) hcursor
 
 /-! ### Layout wrapper
 

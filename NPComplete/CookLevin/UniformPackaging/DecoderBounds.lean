@@ -146,7 +146,8 @@ lemma programBoundedIn_decodeNatProgramAt_of_bounds
   · have hc := loopEval_decodeUnaryStep_count_le cursorReg countReg doneReg hcc hcountDone m σ
     omega
 
-export NPComplete.SAT (programBoundedIn_decodeLiteralValueProgramAt_of_bounds)
+export NPComplete.SAT (programBoundedIn_decodeLiteralValueProgramAt_of_bounds
+  programBoundedIn_decodeLiteralValueProgramAt_of_local_bounds)
 
 lemma programBoundedIn_decodeLiteralValueProgramAt_raw_post_bounds
     (K B cursorReg polReg varReg doneReg boundReg : ℕ) (σ : Store)
