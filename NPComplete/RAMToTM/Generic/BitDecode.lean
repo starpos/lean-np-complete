@@ -1,10 +1,12 @@
 module
 
 meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDiscipline
 public import NPComplete.BitEncoding
 public import NPComplete.RAMToTM.Generic.Api.BoundedWhileDecider
 public import NPComplete.RAMToTM.Generic.Api.CompileExecBounded
 public import NPComplete.BoundedWhile.Frame
+public import NPComplete.BoundedWhile.RegLayout
 
 /-!
 # Shared bit decoding
@@ -395,7 +397,7 @@ lemma decodeUnaryProgAt_eq (cursorReg countReg doneReg : ℕ) (boundE : Expr)
     ScanFree (decodeUnaryProgAt c k d e) := by
   simp [ScanFree, decodeUnaryProgAt, decodeUnaryStep]
 
-@[construction_api] def readUnaryProgAt (c k d lr : ℕ) : Program :=
+@[construction_api, stage_raw_ctor] def readUnaryProgAt (c k d lr : ℕ) : Program :=
   .seq (.assign k (.const 0)) (.seq (.assign d (.const 0)) (decodeUnaryProgAt c k d (.reg lr)))
 
 @[construction_api] lemma scanFree_readUnaryProgAt (c k d lr : ℕ) :
@@ -518,5 +520,65 @@ lemma unary_loop_bounds_aux (c k d : ℕ)
   unfold readUnaryProgAt
   simp only [ProgramBoundedIn, ExprBoundedIn, Expr.eval, eval_assign]
   exact ⟨⟨by omega, by omega⟩, ⟨⟨by omega, by omega⟩, hp⟩⟩
+
+/-! ### Layout wrapper
+
+`readUnaryProgAtL` is the layout-role version of `readUnaryProgAt`: all four registers are roles of
+a layout.  The lemmas restate the contract of the raw constructor in those roles, so a boundary
+works against the layout without naming the raw constructor. -/
+
+open NPComplete.BoundedWhile (RegLayout)
+
+/-- The layout-role version of `readUnaryProgAt`: `c`, `k`, `d` and `lr` are roles of `R`. -/
+@[construction_api, stage_boundary] def readUnaryProgAtL {Role : Type} (R : RegLayout Role)
+    (c k d lr : Role) : Program :=
+  readUnaryProgAt (R.reg c) (R.reg k) (R.reg d) (R.reg lr)
+
+variable {Role : Type} {R : RegLayout Role}
+
+@[construction_api, stage_contract] lemma scanFree_readUnaryProgAtL (c k d lr : Role) :
+    ScanFree (readUnaryProgAtL R c k d lr) :=
+  scanFree_readUnaryProgAt (R.reg c) (R.reg k) (R.reg d) (R.reg lr)
+
+@[construction_api, stage_contract] lemma readUnaryProgAtL_avoids {c k d lr : Role}
+    {P : ℕ → Prop} (hc : ¬ P (R.reg c)) (hk : ¬ P (R.reg k)) (hd : ¬ P (R.reg d)) :
+    (readUnaryProgAtL R c k d lr).Avoids P :=
+  readUnaryProgAt_avoids (lr := R.reg lr) hc hk hd
+
+@[construction_api, stage_contract] lemma readUnaryProgAtL_frame (c k d lr : Role) (r : ℕ)
+    (σ : Store) (hc : r ≠ R.reg c) (hk : r ≠ R.reg k) (hd : r ≠ R.reg d) :
+    (readUnaryProgAtL R c k d lr).eval σ r = σ r :=
+  readUnaryProgAt_frame (R.reg c) (R.reg k) (R.reg d) (R.reg lr) r σ hc hk hd
+
+@[construction_api, stage_contract] lemma readUnaryProgAtL_correct {c k d lr : Role} {b n : ℕ}
+    {rest : Bits} {σ : Store}
+    (hcb : R.reg c < b) (hkb : R.reg k < b) (hdb : R.reg d < b)
+    (hck : c ≠ k) (hcd : c ≠ d) (hkd : k ≠ d) (hlk : lr ≠ k) (hld : lr ≠ d)
+    (hc : σ (R.reg c) = b) (hN : n + 1 ≤ σ (R.reg lr))
+    (hbits : BitsFrom σ b (encodeNat n ++ rest)) :
+    (readUnaryProgAtL R c k d lr).eval σ (R.reg c) = b + n + 1 ∧
+    (readUnaryProgAtL R c k d lr).eval σ (R.reg k) = n ∧
+    (readUnaryProgAtL R c k d lr).eval σ (R.reg d) = 1 ∧
+    ∀ r, r ≠ R.reg c → r ≠ R.reg k → r ≠ R.reg d →
+      (readUnaryProgAtL R c k d lr).eval σ r = σ r :=
+  readUnaryProgAt_correct hcb hkb hdb (R.reg_ne hck) (R.reg_ne hcd) (R.reg_ne hkd)
+    (R.reg_ne hlk) (R.reg_ne hld) hc hN hbits
+
+@[construction_api, stage_contract] lemma readUnaryProgAtL_frame_rest {c k d lr : Role} {b n : ℕ}
+    {rest : Bits} {σ : Store} (hcb : R.reg c < b) (hkb : R.reg k < b) (hdb : R.reg d < b)
+    (hbits : BitsFrom σ b (encodeNat n ++ rest)) :
+    (∀ r, b ≤ r → (readUnaryProgAtL R c k d lr).eval σ r = σ r) ∧
+      BitsFrom ((readUnaryProgAtL R c k d lr).eval σ) (b + n + 1) rest :=
+  readUnaryProgAt_frame_rest hcb hkb hdb hbits
+
+@[construction_api, stage_contract] lemma readUnaryProgAtL_bounded {c k d lr : Role}
+    {addr n B : ℕ} {rest : Bits} {σ : Store}
+    (hca : R.reg c < addr) (hka : R.reg k < addr) (hda : R.reg d < addr)
+    (hck : c ≠ k) (hcd : c ≠ d) (hkd : k ≠ d)
+    (hc : σ (R.reg c) = addr) (hbits : BitsFrom σ addr (encodeNat n ++ rest))
+    (hlr : R.reg lr ≤ B) (hB : addr + n + 2 ≤ B) :
+    ProgramBoundedIn B σ (readUnaryProgAtL R c k d lr) :=
+  readUnaryProgAt_bounded hca hka hda (R.reg_ne hck) (R.reg_ne hcd) (R.reg_ne hkd)
+    hc hbits hlr hB
 
 end NPComplete.RAMToTM

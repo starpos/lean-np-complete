@@ -42,6 +42,11 @@ namespace NPComplete.Test.StageFix
 
 @[stage_boundary] def loopStd : Program := .forN (.const 3) (bump lay)
 
+@[stage_boundary] def writeStd : Program := writeUnaryProgAtL lay 100 .acc .cnt
+
+@[stage_contract] lemma writeStd_scanFree : ScanFree writeStd :=
+  scanFree_writeUnaryProgAtL (R := lay) 100 .acc .cnt
+
 @[stage_boundary] def accIs (R : RegLayout Role) (v : ℕ) : LayoutFact R := LayoutFact.reg .acc v
 
 @[stage_boundary] def accFoot (R : RegLayout Role) : Foot R := Foot.regsOnly {.acc}

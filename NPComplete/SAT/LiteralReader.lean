@@ -1,7 +1,9 @@
 module
 
 meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDiscipline
 public import NPComplete.SAT.LiteralReaderFixed
+public import NPComplete.BoundedWhile.RegLayout
 
 /-!
 # Register-bounded literal reader
@@ -18,7 +20,7 @@ open NPComplete.RAMToTM
 open NPComplete.BoundedWhile
 open NPComplete.BitEncoding (Bits encodeNat)
 
-@[construction_api] def decodeLiteralValueProgramAt
+@[construction_api, stage_raw_ctor] def decodeLiteralValueProgramAt
     (cursorReg polReg varReg doneReg boundReg : ℕ) : Program :=
   .seq (readBitAdvanceProg cursorReg polReg)
   <| .seq (.assign varReg (.const 0))
@@ -225,5 +227,98 @@ lemma decodeLiteralValueProgramAt_bound_frame
   refine ⟨hpVar, ?_⟩
   rw [show (Program.assign varReg (.const 0)).eval σr = σ2 from rfl]
   exact ⟨hpDone, hpDecode⟩
+
+/-! ### Layout wrapper
+
+`decodeLiteralValueProgramAtL` is the layout-role version of `decodeLiteralValueProgramAt`: all
+five registers are roles of a layout.  The lemmas restate the contract of the raw constructor in
+those roles, so a boundary works against the layout without naming the raw constructor. -/
+
+/-- The layout-role version of `decodeLiteralValueProgramAt`: `cursor`, `pol`, `var`, `done` and
+`bound` are roles of `R`. -/
+@[construction_api, stage_boundary] def decodeLiteralValueProgramAtL {Role : Type}
+    (R : RegLayout Role) (cursor pol var done bound : Role) : Program :=
+  decodeLiteralValueProgramAt (R.reg cursor) (R.reg pol) (R.reg var) (R.reg done) (R.reg bound)
+
+variable {Role : Type} {R : RegLayout Role}
+
+@[construction_api, stage_contract] lemma decodeLiteralValueProgramAtL_avoids_frame
+    (cursor pol var done bound : Role) :
+    (decodeLiteralValueProgramAtL R cursor pol var done bound).Avoids
+      (fun r => r ≠ R.reg cursor ∧ r ≠ R.reg pol ∧ r ≠ R.reg var ∧ r ≠ R.reg done) :=
+  decodeLiteralValueProgramAt_avoids_frame (R.reg cursor) (R.reg pol) (R.reg var) (R.reg done)
+    (R.reg bound)
+
+@[construction_api, stage_contract] lemma decodeLiteralValueProgramAtL_correct
+    (cursor pol var done bound : Role) (bound' addr : ℕ) (l : Literal) (rest : Bits) (σ : Store)
+    (hcp : cursor ≠ pol) (hcv : cursor ≠ var) (hcd : cursor ≠ done) (hpv : pol ≠ var)
+    (hpd : pol ≠ done) (hvd : var ≠ done)
+    (hbc : bound ≠ cursor) (hbp : bound ≠ pol) (hbv : bound ≠ var) (hbd : bound ≠ done)
+    (hca : R.reg cursor < addr) (hpa : R.reg pol < addr)
+    (hva : R.reg var < addr) (hda : R.reg done < addr)
+    (hbound : l.var + 1 ≤ bound') (hb : σ (R.reg bound) = bound')
+    (hc : σ (R.reg cursor) = addr)
+    (hbits : BitsFrom σ addr (encodeLiteral l ++ rest)) :
+    (decodeLiteralValueProgramAtL R cursor pol var done bound).eval σ (R.reg cursor) =
+        addr + l.var + 2 ∧
+    (decodeLiteralValueProgramAtL R cursor pol var done bound).eval σ (R.reg pol) =
+        (match l with | .pos _ => 0 | .neg _ => 1) ∧
+    (decodeLiteralValueProgramAtL R cursor pol var done bound).eval σ (R.reg var) = l.var ∧
+    (decodeLiteralValueProgramAtL R cursor pol var done bound).eval σ (R.reg done) = 1 ∧
+    (∀ r, r ≠ R.reg cursor → r ≠ R.reg pol → r ≠ R.reg var → r ≠ R.reg done →
+      (decodeLiteralValueProgramAtL R cursor pol var done bound).eval σ r = σ r) :=
+  decodeLiteralValueProgramAt_correct (R.reg cursor) (R.reg pol) (R.reg var) (R.reg done)
+    (R.reg bound) bound' addr l rest σ
+    (R.reg_ne hcp) (R.reg_ne hcv) (R.reg_ne hcd) (R.reg_ne hpv) (R.reg_ne hpd) (R.reg_ne hvd)
+    (R.reg_ne hbc) (R.reg_ne hbp) (R.reg_ne hbv) (R.reg_ne hbd)
+    hca hpa hva hda hbound hb hc hbits
+
+@[construction_api, stage_contract] lemma decodeLiteralValueProgramAtL_frame_rest
+    (cursor pol var done bound : Role) (b : ℕ) (l : Literal) (rest : Bits) (σ : Store)
+    (hc : R.reg cursor < b) (hp : R.reg pol < b) (hv : R.reg var < b) (hd : R.reg done < b)
+    (hbits : BitsFrom σ b (encodeLiteral l ++ rest)) :
+    (∀ r, b ≤ r → (decodeLiteralValueProgramAtL R cursor pol var done bound).eval σ r = σ r) ∧
+      BitsFrom ((decodeLiteralValueProgramAtL R cursor pol var done bound).eval σ)
+        (b + (encodeLiteral l).length) rest :=
+  decodeLiteralValueProgramAt_frame_rest (R.reg cursor) (R.reg pol) (R.reg var) (R.reg done)
+    (R.reg bound) b l rest σ hc hp hv hd hbits
+
+@[construction_api, stage_contract] lemma decodeLiteralValueProgramAtL_frame
+    (cursor pol var done bound : Role) (r : ℕ) (σ : Store)
+    (hrc : r ≠ R.reg cursor) (hrp : r ≠ R.reg pol) (hrv : r ≠ R.reg var)
+    (hrd : r ≠ R.reg done) :
+    (decodeLiteralValueProgramAtL R cursor pol var done bound).eval σ r = σ r :=
+  decodeLiteralValueProgramAt_frame (R.reg cursor) (R.reg pol) (R.reg var) (R.reg done)
+    (R.reg bound) r σ hrc hrp hrv hrd
+
+@[construction_api, stage_contract] lemma decodeLiteralValueProgramAtL_bounded
+    {cursor pol var done bound : Role} {b B : ℕ} {l : Literal} {rest : Bits} {σ : Store}
+    (hcb : R.reg cursor < b) (hpb : R.reg pol < b) (hkb : R.reg var < b) (hdb : R.reg done < b)
+    (hcp : cursor ≠ pol) (hck : cursor ≠ var) (hcd : cursor ≠ done) (hkd : var ≠ done)
+    (hc : σ (R.reg cursor) = b) (hcell : BitsFrom σ b (encodeLiteral l ++ rest))
+    (hlr : R.reg bound ≤ B) (hB : b + l.var + 3 ≤ B) :
+    ProgramBoundedIn B σ (decodeLiteralValueProgramAtL R cursor pol var done bound) :=
+  decodeLiteralValueProgramAt_bounded hcb hpb hkb hdb
+    (R.reg_ne hcp) (R.reg_ne hck) (R.reg_ne hcd) (R.reg_ne hkd) hc hcell hlr hB
+
+@[construction_api, stage_contract] lemma scanFree_decodeLiteralValueProgramAtL
+    (cursor pol var done bound : Role) :
+    ScanFree (decodeLiteralValueProgramAtL R cursor pol var done bound) :=
+  scanFree_decodeLiteralValueProgramAt (R.reg cursor) (R.reg pol) (R.reg var) (R.reg done)
+    (R.reg bound)
+
+@[construction_api, stage_contract] lemma programBoundedIn_decodeLiteralValueProgramAtL_of_bounds
+    (B : ℕ) (cursor pol var done bound : Role) (σ : Store)
+    (hidx : R.reg cursor ≤ B ∧ R.reg pol ≤ B ∧ R.reg var ≤ B ∧ R.reg done ≤ B ∧ R.reg bound ≤ B)
+    (hdist : cursor ≠ pol ∧ cursor ≠ var ∧ cursor ≠ done ∧ var ≠ done ∧
+      bound ≠ cursor ∧ bound ≠ pol ∧ bound ≠ var ∧ bound ≠ done)
+    (hB1 : 1 ≤ B) (hσ : StoreValuesLe B σ)
+    (hcursor : σ (R.reg cursor) + 1 + σ (R.reg bound) ≤ B) :
+    ProgramBoundedIn B σ (decodeLiteralValueProgramAtL R cursor pol var done bound) := by
+  rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd⟩
+  exact programBoundedIn_decodeLiteralValueProgramAt_of_bounds B (R.reg cursor) (R.reg pol)
+    (R.reg var) (R.reg done) (R.reg bound) σ hidx
+    ⟨R.reg_ne hcp, R.reg_ne hcv, R.reg_ne hcd, R.reg_ne hvd, R.reg_ne hbc, R.reg_ne hbp,
+      R.reg_ne hbv, R.reg_ne hbd⟩ hB1 hσ hcursor
 
 end NPComplete.SAT

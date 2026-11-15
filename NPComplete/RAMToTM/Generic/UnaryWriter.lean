@@ -1,8 +1,10 @@
 module
 
 meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDiscipline
 public import NPComplete.RAMToTM.Generic.BitDecode
 public import NPComplete.BoundedWhile.WritesIn
+public import NPComplete.BoundedWhile.RegLayout
 
 /-!
 A parameterized unary writer lets independent output producers share the same encoding program.
@@ -18,7 +20,7 @@ def unaryStep (base c : ℕ) : Program :=
   (Program.assignInd (.add (.const base) (.reg c)) (.const 0)).seq
     (Program.assign c (.add (.reg c) (.const 1)))
 
-@[construction_api] def writeUnaryProgAt (base c k : ℕ) : Program :=
+@[construction_api, stage_raw_ctor] def writeUnaryProgAt (base c k : ℕ) : Program :=
   (Program.forN (.reg k) (unaryStep base c)).seq
     ((Program.assignInd (.add (.const base) (.reg c)) (.const 1)).seq
       (Program.assign c (.add (.reg c) (.const 1))))
@@ -155,5 +157,54 @@ lemma unary_eval {base c k p n : ℕ} {σ : Store} (hc : c < base + p) (hk : k <
   simp only [ProgramBoundedIn, ExprBoundedIn, Expr.eval, eval_forN, hI.1,
     eval_assignInd, writeReg_diff _ _ _ _ (show c ≠ base + (σ c + σ k) by omega)]
   omega
+
+/-! ### Layout wrapper
+
+`writeUnaryProgAtL` is the layout-role version of `writeUnaryProgAt`: the registers are roles of a
+layout and the memory base stays data.  The lemmas restate the contract of the raw constructor in
+those roles, so a boundary works against the layout without naming the raw constructor. -/
+
+/-- The layout-role version of `writeUnaryProgAt`: `c` and `k` are roles of `R`. -/
+@[construction_api, stage_boundary] def writeUnaryProgAtL {Role : Type} (R : RegLayout Role)
+    (base : ℕ) (c k : Role) : Program :=
+  writeUnaryProgAt base (R.reg c) (R.reg k)
+
+variable {Role : Type} {R : RegLayout Role}
+
+@[construction_api, stage_contract] lemma writeUnaryProgAtL_correct {base : ℕ} {c k : Role}
+    {σ : Store} (hck : c ≠ k)
+    (hc : R.reg c < base + σ (R.reg c)) (hk : R.reg k < base + σ (R.reg c)) :
+    (writeUnaryProgAtL R base c k).eval σ (R.reg c) = σ (R.reg c) + σ (R.reg k) + 1 ∧
+    BitsFrom ((writeUnaryProgAtL R base c k).eval σ) (base + σ (R.reg c)) (encodeNat (σ (R.reg k))) ∧
+    (writeUnaryProgAtL R base c k).eval σ (R.reg k) = σ (R.reg k) :=
+  writeUnaryProgAt_correct (R.reg_ne hck) hc hk
+
+@[construction_api, stage_contract] lemma writeUnaryProgAtL_writesIn {base : ℕ} {c k : Role}
+    {σ : Store} (hck : c ≠ k)
+    (hc : R.reg c < base + σ (R.reg c)) (hk : R.reg k < base + σ (R.reg c)) :
+    WritesIn (fun r => r = R.reg c ∨
+      (base + σ (R.reg c) ≤ r ∧ r < base + σ (R.reg c) + σ (R.reg k) + 1))
+      (writeUnaryProgAtL R base c k) σ :=
+  writeUnaryProgAt_writesIn (R.reg_ne hck) hc hk
+
+@[construction_api, stage_contract] lemma writeUnaryProgAtL_frame {base : ℕ} {c k : Role}
+    {σ : Store} (hck : c ≠ k)
+    (hc : R.reg c < base + σ (R.reg c)) (hk : R.reg k < base + σ (R.reg c)) (r : ℕ)
+    (hr : r ≠ R.reg c)
+    (hout : r < base + σ (R.reg c) ∨ base + σ (R.reg c) + σ (R.reg k) + 1 ≤ r) :
+    (writeUnaryProgAtL R base c k).eval σ r = σ r :=
+  writeUnaryProgAt_frame (R.reg_ne hck) hc hk hr hout
+
+@[construction_api, stage_contract] lemma scanFree_writeUnaryProgAtL (base : ℕ) (c k : Role) :
+    ScanFree (writeUnaryProgAtL R base c k) :=
+  scanFree_writeUnaryProgAt base (R.reg c) (R.reg k)
+
+@[construction_api, stage_contract] lemma writeUnaryProgAtL_bounded {base : ℕ} {c k : Role}
+    {B : ℕ} {σ : Store} (hck : c ≠ k)
+    (hc : R.reg c < base + σ (R.reg c)) (hk : R.reg k < base + σ (R.reg c))
+    (hcb : R.reg c ≤ B) (hkb : R.reg k ≤ B) (h1 : 1 ≤ B)
+    (hB : base + σ (R.reg c) + σ (R.reg k) + 1 ≤ B) :
+    ProgramBoundedIn B σ (writeUnaryProgAtL R base c k) :=
+  writeUnaryProgAt_bounded (R.reg_ne hck) hc hk hcb hkb h1 hB
 
 end NPComplete.RAMToTM

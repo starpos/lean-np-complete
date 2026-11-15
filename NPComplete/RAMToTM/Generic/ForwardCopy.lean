@@ -1,8 +1,10 @@
 module
 
 meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDiscipline
 public import NPComplete.RAMToTM.Generic.BitDecode
 public import NPComplete.BoundedWhile.WritesIn
+public import NPComplete.BoundedWhile.RegLayout
 
 /-!
 # Parameterized forward copying
@@ -18,7 +20,7 @@ namespace NPComplete.RAMToTM
 open NPComplete.BoundedWhile
 
 /-- Copy `src .. src + σ lr` to the address computed at entry by `dst`. -/
-@[construction_api] def forwardCopyProg (src lr a b : ℕ) (dst : Expr) : Program :=
+@[construction_api, stage_raw_ctor] def forwardCopyProg (src lr a b : ℕ) (dst : Expr) : Program :=
   let s : Expr := .add (.reg lr) (.const a)
   let d : Expr := .add (.reg lr) (.const b)
   let step : Program :=
@@ -272,5 +274,57 @@ lemma forwardCopyProg_inv {src lr a b N : ℕ} {dst : Expr} {σ : Store}
   · exact hdst
   · simp only [bitInputStore_zero, max_eq_right (Nat.zero_le _)]
     exact hB
+
+/-! ### Layout wrapper
+
+`forwardCopyProgL` is the layout-role version of `forwardCopyProg`: the length register `lr` is a
+role of a layout, the source and the scratch offsets stay data.  The lemmas restate the contract of
+the raw constructor in those roles.  The `bitInputStore` specializations are raw-store lemmas and
+stay with the implementation. -/
+
+/-- The layout-role version of `forwardCopyProg`: `lr` is a role of `R`. -/
+@[construction_api, stage_boundary] def forwardCopyProgL {Role : Type} (R : RegLayout Role)
+    (src : ℕ) (lr : Role) (a b : ℕ) (dst : Expr) : Program :=
+  forwardCopyProg src (R.reg lr) a b dst
+
+variable {Role : Type} {R : RegLayout Role}
+
+@[construction_api, stage_contract] lemma scanFree_forwardCopyProgL (src : ℕ) (lr : Role)
+    (a b : ℕ) (dst : Expr) :
+    ScanFree (forwardCopyProgL R src lr a b dst) :=
+  scanFree_forwardCopyProg src (R.reg lr) a b dst
+
+@[construction_api, stage_contract] lemma forwardCopyProgL_writesIn (src : ℕ) (lr : Role)
+    (a b : ℕ) (dst : Expr) (σ : Store)
+    (hl : ForwardCopyLayout src (R.reg lr) a b (σ (R.reg lr)) (dst.eval σ)) :
+    WritesIn (fun r => r = σ (R.reg lr) + a ∨ r = σ (R.reg lr) + b ∨
+      dst.eval σ ≤ r ∧ r < dst.eval σ + σ (R.reg lr)) (forwardCopyProgL R src lr a b dst) σ :=
+  forwardCopyProg_writesIn src (R.reg lr) a b dst σ hl
+
+@[construction_api, stage_contract] lemma forwardCopyProgL_frame (src : ℕ) (lr : Role)
+    (a b : ℕ) (dst : Expr) (σ : Store)
+    (hl : ForwardCopyLayout src (R.reg lr) a b (σ (R.reg lr)) (dst.eval σ)) (r : ℕ)
+    (ha : r ≠ σ (R.reg lr) + a) (hb : r ≠ σ (R.reg lr) + b)
+    (hr : r < dst.eval σ ∨ dst.eval σ + σ (R.reg lr) ≤ r) :
+    (forwardCopyProgL R src lr a b dst).eval σ r = σ r :=
+  forwardCopyProg_frame src (R.reg lr) a b dst σ hl r ha hb hr
+
+@[construction_api, stage_contract] lemma forwardCopyProgL_correct (src : ℕ) (lr : Role)
+    (a b : ℕ) (dst : Expr) (σ : Store) (bits : NPComplete.BitEncoding.Bits)
+    (hlen : σ (R.reg lr) = bits.length)
+    (hlayout : ForwardCopyLayout src (R.reg lr) a b bits.length (dst.eval σ))
+    (hbits : BitsFrom σ src bits) :
+    let τ := (forwardCopyProgL R src lr a b dst).eval σ
+    BitsFrom τ (dst.eval σ) bits ∧
+      (∀ i < bits.length, τ (src + i) = σ (src + i)) ∧ τ 0 = σ 0 :=
+  forwardCopyProg_correct src (R.reg lr) a b dst σ bits hlen hlayout hbits
+
+@[construction_api, stage_contract] lemma forwardCopyProgL_programBoundedIn (src : ℕ) (lr : Role)
+    (a b B : ℕ) (dst : Expr) (σ : Store)
+    (hl : ForwardCopyLayout src (R.reg lr) a b (σ (R.reg lr)) (dst.eval σ))
+    (hdst : ExprBoundedIn B σ dst)
+    (hB : max (R.reg lr) (dst.eval σ + σ (R.reg lr)) ≤ B) :
+    ProgramBoundedIn B σ (forwardCopyProgL R src lr a b dst) :=
+  forwardCopyProg_programBoundedIn src (R.reg lr) a b B dst σ hl hdst hB
 
 end NPComplete.RAMToTM
