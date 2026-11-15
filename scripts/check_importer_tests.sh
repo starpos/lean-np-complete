@@ -67,6 +67,8 @@ should_fail=(
   'NPCompleteTest/ShouldFail/StageDefaultMention.lean:mentions stage_impl'
   'NPCompleteTest/ShouldFail/StageRawCtorNum.lean:mentions the raw constructor `NPComplete.RAMToTM.writeUnaryProgAt`'
   'NPCompleteTest/ShouldFail/StageRawCtorRole.lean:mentions the raw constructor `NPComplete.RAMToTM.writeUnaryProgAt`'
+  'NPCompleteTest/ShouldFail/StageRawCtorLemmaNum.lean:mentions the raw-constructor lemma `NPComplete.RAMToTM.readUnaryProgAt_frame`'
+  'NPCompleteTest/ShouldFail/StageRawCtorLemmaRole.lean:mentions the raw-constructor lemma `NPComplete.RAMToTM.readUnaryProgAt_frame`'
 )
 for entry in "${should_fail[@]}"; do
   f=${entry%%:*}; needle=${entry#*:}

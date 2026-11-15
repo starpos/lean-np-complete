@@ -47,6 +47,15 @@ namespace NPComplete.Test.StageFix
 @[stage_contract] lemma writeStd_scanFree : ScanFree writeStd :=
   scanFree_writeUnaryProgAtL (R := lay) 100 .acc .cnt
 
+/-- WHY THIS LEMMA: a boundary derives facts from the wrapper's restated contract on layout
+roles, never from the raw constructor's lemmas. -/
+@[stage_boundary] lemma writeStd_frame {σ : Store} (hck : Role.acc ≠ Role.cnt)
+    (hc : lay.reg .acc < 100 + σ (lay.reg .acc)) (hk : lay.reg .cnt < 100 + σ (lay.reg .acc))
+    (r : ℕ) (hr : r ≠ lay.reg .acc)
+    (hout : r < 100 + σ (lay.reg .acc) ∨ 100 + σ (lay.reg .acc) + σ (lay.reg .cnt) + 1 ≤ r) :
+    writeStd.eval σ r = σ r :=
+  writeUnaryProgAtL_frame (R := lay) hck hc hk r hr hout
+
 @[stage_boundary] def accIs (R : RegLayout Role) (v : ℕ) : LayoutFact R := LayoutFact.reg .acc v
 
 @[stage_boundary] def accFoot (R : RegLayout Role) : Foot R := Foot.regsOnly {.acc}

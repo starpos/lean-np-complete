@@ -30,14 +30,18 @@ A checked declaration must not
    (`eval_seq` and the like), a raw contract entry (`StageSpec.assign`, `LayoutSpec.of_direct`, ...), build a `Store` by a lambda, or pass a closed `Store` to a function;
 3. mention a `stage_impl` or `stage_adapter` declaration, or an in-scope declaration that carries no
    tag;
-4. mention a raw constructor (a program builder that takes register numbers as `ℕ`, marked
-   `stage_raw_ctor`), even with layout roles as arguments: the declaration calls the layout wrapper
-   of the constructor instead, which takes the registers as roles.
+4. mention a raw constructor or a raw-constructor entry, even with layout roles as arguments: a raw
+   constructor is a program builder that takes register numbers as `ℕ` (marked `stage_raw_ctor`),
+   and a raw-constructor entry is any declaration whose statement mentions one — the contract
+   lemmas of the constructor are raw entries by this rule, without carrying the mark.  The
+   declaration calls the layout wrapper of the constructor and the wrapper's restated contract
+   instead, which take the registers as roles.
 
 A layout accessor, a fact or a contract is a boundary of the check: it is classified once where it
 is defined and never unfolded here.  The layout wrapper of a raw constructor is such a boundary
 too: its body calls the raw constructor and is never read here, so using the wrapper keeps the raw
-constructor invisible.
+constructor invisible.  The lemmas that restate the contract of a wrapper on layout roles are not
+raw-constructor entries: their statements name the wrapper, not the raw constructor.
 
 ## Defaults
 
@@ -267,6 +271,20 @@ def isRaw (c : Name) : Bool :=
         | .str _ s => ["eval_", "loopEval_", "scanListEval_"].any (s.startsWith ·)
         | _ => false))
 
+/-- The raw constructor a statement is written against: a constant occurring in the statement of
+`n` is tagged `stage_raw_ctor`, directly or through the declaration it is accounted to.  A lemma
+whose statement shows the program of a raw constructor is a raw-constructor entry just like the
+constructor itself, so the entry needs no mark of its own. -/
+def stmtRawCtor? (env : Environment) (n : Name) : Option Name :=
+  match env.find? n with
+  | none => none
+  | some ci =>
+    ci.type.getUsedConstants.findSome? fun c =>
+      if stageRawCtorAttr.hasTag env c then some c
+      else
+        let o := accountOwner env c
+        if stageRawCtorAttr.hasTag env o then some o else none
+
 /-- What a traversal collects: the violations found in the shape of the term, and the constants
 occurring outside the proofs that were skipped. -/
 structure St where
@@ -396,6 +414,10 @@ def hintRawCtor :=
   "how to fix: call the layout wrapper of this constructor (registers as roles of a layout) \
 instead, or move this declaration into `stage_impl`"
 
+def hintRawCtorLemma :=
+  "how to fix: use the layout-wrapper lemma that restates this contract on layout roles instead, \
+or move this declaration into `stage_impl`"
+
 def hintMention :=
   "how to fix: use the published contract of the mentioned stage instead, or move this declaration \
 into `stage_impl`"
@@ -439,6 +461,10 @@ def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
       if stageRawCtorAttr.hasTag env d then
         out := out.push
           s!"{c.toString} declaration `{disp}` mentions the raw constructor `{dd}` in its {where_} ({hintRawCtor})"
+      else if let some y := stmtRawCtor? env raw <|> stmtRawCtor? env d then
+        out := out.push
+          s!"{c.toString} declaration `{disp}` mentions the raw-constructor lemma `{dd}`, which is \
+stated on the raw constructor `{NPComplete.ApiLayer.layerCheckName y}`, in its {where_} ({hintRawCtorLemma})"
       else if isRaw dd then
         out := out.push
           s!"{c.toString} declaration `{disp}` mentions the raw store operation `{dd}` in its {where_} ({hintRaw})"

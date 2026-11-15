@@ -29,7 +29,10 @@ stage.  Only an implementation declaration may use it.
 
 `stage_raw_ctor` is not a class of the checked declarations: it marks a raw program constructor
 that takes register numbers as `ℕ`.  A boundary or a contract must call the layout wrapper of the
-constructor (roles instead of register numbers) and never the raw constructor itself.
+constructor (roles instead of register numbers) and never the raw constructor itself.  The
+contract lemmas of a raw constructor carry no mark: the checker treats every declaration whose
+statement mentions a raw constructor as raw as well, so a boundary or a contract uses the lemmas
+that restate the contract on layout roles instead.
 
 This module imports only `Lean.Attributes` so that any module may import it to classify its
 declarations; the checker lives in `StageDisciplineCheck.lean`.
