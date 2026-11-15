@@ -70,3 +70,33 @@ namespace NPComplete.Test.StageFix
 end NPComplete.Test.StageFix
 
 #check_stage_discipline ns NPComplete.Test.StageFix
+
+namespace NPComplete.Test.StageDefault
+
+open NPComplete.Test.StageFix
+
+/-!
+A positive example for `stage_default`: everything untagged below is held to `stage_boundary`,
+and the exceptions carry individual tags.  The mention rule sees the default of `twice` exactly
+as it would see a `stage_boundary` tag, and the `stage_impl` exception `legacy` is never
+mentioned from the boundary.
+-/
+
+stage_default boundary
+
+def twice : Program := bumpTwice lay
+
+def composed : Program := twice.seq twice
+
+@[stage_impl] def legacy : Program := bump lay
+
+lemma composed_spec {B n : ℕ} (hB : lay.top ≤ B) (hn : n + 2 + 2 + 2 + 2 ≤ B) :
+    LayoutSpec lay B (accIs lay n).holds composed
+      (((accFoot lay).union (accFoot lay)).union ((accFoot lay).union (accFoot lay)))
+      (accIs lay (n + 2 + 2 + 2 + 2)).holds :=
+  (bumpTwice_spec (n := n) lay hB (by omega)).seq
+    (bumpTwice_spec (n := n + 2 + 2) lay hB (by omega))
+
+end NPComplete.Test.StageDefault
+
+#check_stage_discipline ns NPComplete.Test.StageDefault

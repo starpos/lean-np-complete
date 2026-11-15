@@ -25,7 +25,10 @@ done
 
 log=$(mktemp)
 # remove the test modules' outputs so that a stale artifact cannot make a skipped module look built
-rm -rf .lake/build/lib/lean/NPCompleteTest .lake/build/ir/NPCompleteTest
+# (find -delete instead of rm -rf, which the sandbox refuses)
+for d in .lake/build/lib/lean/NPCompleteTest .lake/build/ir/NPCompleteTest; do
+  [ -d "$d" ] && find "$d" -depth -delete
+done
 lake build NPCompleteTest >"$log" 2>&1; rc=$?
 cat "$log"
 [ $rc -eq 0 ] && grep -q "Build completed successfully" "$log" || fail "lake build NPCompleteTest"
@@ -58,6 +61,10 @@ should_fail=(
   'NPCompleteTest/ShouldFail/StageStoreNumeralStmt.lean:a numeral applied to a `Store`'
   "NPCompleteTest/ShouldFail/StageUnclassified.lean:is not classified"
   'NPCompleteTest/ShouldFail/StageWriteReg.lean:mentions the raw store operation `NPComplete.BoundedWhile.writeReg`'
+  'NPCompleteTest/ShouldFail/StageDefaultViol.lean:a numeric register in `Expr.reg`'
+  'NPCompleteTest/ShouldFail/StageDefaultLenient.lean:stage_default_free'
+  'NPCompleteTest/ShouldFail/StageDefaultConflict.lean:conflicting defaults'
+  'NPCompleteTest/ShouldFail/StageDefaultMention.lean:mentions stage_impl'
 )
 for entry in "${should_fail[@]}"; do
   f=${entry%%:*}; needle=${entry#*:}

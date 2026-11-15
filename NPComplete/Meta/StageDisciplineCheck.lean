@@ -34,6 +34,19 @@ A checked declaration must not
 A layout accessor, a fact or a contract is a boundary of the check: it is classified once where it
 is defined and never unfolded here.
 
+## Defaults
+
+`stage_default <cls>` registers a default classification for the current namespace (in the current
+module), so only the exceptions need individual tags.  A declaration without a tag is held to the
+rules of its scope's default exactly as if it carried the tag: a default is enforced, never a way
+to skip the check.  The innermost namespace with a default wins.  Scopes without a default keep the
+old rule — an untagged declaration is an error.
+
+The strict command admits only the checked classes (`boundary`, `contract`).  The unchecked classes
+(`layout`, `impl`, `adapter`, `unchecked`) relax the discipline for whatever follows, so they must
+be spelled `stage_default_free <cls>`: a lenient default is always visible and greppable in the
+source, and never falls out of a strict command.
+
 What is not detected: a register number hidden behind a definition outside the checked namespaces,
 an arithmetic expression on non-literal data that evaluates to a register, memory addresses written
 as numerals (except a bare numeral address), a numeral that reaches a register through
@@ -70,9 +83,70 @@ def clsAttrs : List (Cls × TagAttribute) :=
   [(.layout, stageLayoutAttr), (.impl, stageImplAttr), (.contract, stageContractAttr),
     (.boundary, stageBoundaryAttr), (.adapter, stageAdapterAttr), (.unchecked, stageUncheckedAttr)]
 
+/-- Is the class checked (`boundary`, whose full rules apply, or `contract`, whose statement is held
+to them)?  A default to an unchecked class relaxes the discipline and must be spelled
+`stage_default_free`. -/
+def Cls.checked : Cls → Bool
+  | .boundary | .contract => true
+  | _ => false
+
+def Cls.ofIdent : Name → Option Cls
+  | `layout | `stage_layout => some .layout
+  | `impl | `stage_impl => some .impl
+  | `contract | `stage_contract => some .contract
+  | `boundary | `stage_boundary => some .boundary
+  | `adapter | `stage_adapter => some .adapter
+  | `unchecked | `stage_unchecked => some .unchecked
+  | _ => none
+
+/-- A default classification registered for a namespace in one module.  The `free` flag records
+whether the default was spelled `stage_default_free`, i.e. relaxes the check. -/
+structure StageDefault where
+  /-- The module the default was registered in.  It classifies only the declarations of that
+  module, so one module's default never reclassifies another's. -/
+  modName : Name
+  ns : Name
+  cls : Cls
+  free : Bool
+  deriving Inhabited
+
+/-- Defaults, keyed by (module, namespace).  A default classifies the untagged declarations of its
+namespace and its sub-namespaces *in the module that registered it*; the classification of a
+declaration is decided by its own module, and is visible to every importer for the purpose of the
+mention rules.  Registering a different class for the same namespace twice is an error, so a default
+can never change meaning behind a reader's back. -/
+initialize stageDefaultExt :
+    SimplePersistentEnvExtension StageDefault (Array StageDefault) ←
+  registerSimplePersistentEnvExtension {
+    addEntryFn := fun as a => as.push a
+    addImportedFn := fun ess => ess.foldl (fun acc es => acc ++ es) #[] }
+
+/-- The module a constant belongs to; constants being elaborated belong to the main module. -/
+def moduleOf (env : Environment) (n : Name) : Name :=
+  match env.getModuleIdxFor? n with
+  | some i => env.header.moduleNames[i]!
+  | none => env.header.mainModule
+
+/-- The default of the innermost namespace registered for `n`'s own module, if any. -/
+def defaultOf (env : Environment) (n : Name) : Option StageDefault :=
+  let m := moduleOf env n
+  (stageDefaultExt.getState env).foldl (init := none) fun best d =>
+    if d.modName == m && d.ns.isPrefixOf n then
+      match best with
+      | some b => if b.ns.getNumParts < d.ns.getNumParts then some d else best
+      | none => some d
+    else best
+
 /-- All classes a declaration carries; a well-formed declaration carries one. -/
 def classesOf (env : Environment) (n : Name) : List Cls :=
   clsAttrs.filterMap fun (c, a) => if a.hasTag env n then some c else none
+
+/-- The class a declaration is held to: its explicit tags if it has any, else the default of its
+scope.  An explicit tag is an exception to the default and always wins. -/
+def classOf (env : Environment) (n : Name) : List Cls :=
+  match classesOf env n with
+  | [] => (defaultOf env n).toList.map (·.cls)
+  | cs => cs
 
 /-- Classes that a declaration of the given class must not mention.  An adapter, which imports a
 raw program and its proof into a bundled stage, is usable from the implementation side: the
@@ -300,8 +374,34 @@ def partsOf (env : Environment) (n : Name) (c : Cls) : Array (String × Expr) :=
 
 /-- Classes of a constant occurring in a term: its own and those of the declaration it belongs to. -/
 def classesOfUse (env : Environment) (c d : Name) : List Cls :=
-  let cs := classesOf env c ++ classesOf env d
+  let cs := classOf env c ++ classOf env d
   cs.foldl (fun acc x => if acc.contains x then acc else acc ++ [x]) []
+
+/-! ### How to fix, appended to every rejection -/
+
+def hintNumeric :=
+  "how to fix: register numbers and concrete stores live in `stage_layout` (implementation work in \
+`stage_impl`); write this declaration against a layout role, or move it into `stage_impl`"
+
+def hintRaw :=
+  "how to fix: derive the step from a published `stage_contract` instead of the raw semantics, or \
+move this proof into `stage_impl`"
+
+def hintMention :=
+  "how to fix: use the published contract of the mentioned stage instead, or move this declaration \
+into `stage_impl`"
+
+def hintUnclassifiedMention :=
+  "how to fix: classify the mentioned declaration too (a tag or its namespace's `stage_default`), \
+or move both into `stage_impl`"
+
+def hintUnclassified :=
+  "how to fix: add exactly one of stage_layout, stage_impl, stage_contract, stage_boundary, \
+stage_adapter, stage_unchecked, or register a `stage_default` (lenient classes: `stage_default_free`) \
+for its namespace"
+
+def hintMulti :=
+  "how to fix: keep exactly one tag; a declaration under a `stage_default` needs no tag at all"
 
 /-- Violations of the discipline for the declaration `n` of class `c`. -/
 def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
@@ -314,12 +414,13 @@ def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
     let skip := isDef && where_ == "body"
     let ((), st) ← (visit skip e).run {}
     for f in st.found do
-      out := out.push s!"{c.toString} declaration `{disp}` has {f} in its {where_}"
+      out := out.push s!"{c.toString} declaration `{disp}` has {f} in its {where_} ({hintNumeric})"
     if where_ == "body" then
       let ci := (env.find? n).get!
       if let .defnInfo d := ci then
         if buildsStore d.type e then
-          out := out.push s!"{c.toString} declaration `{disp}` builds a `Store` by a lambda"
+          out := out.push
+            s!"{c.toString} declaration `{disp}` builds a `Store` by a lambda ({hintNumeric})"
     let mut seen : NameSet := {}
     for raw in st.consts.toList.toArray.qsort Name.lt do
       let d := accountOwner env raw
@@ -327,16 +428,19 @@ def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
       if dd == disp || seen.contains d then continue
       seen := seen.insert d
       if isRaw dd then
-        out := out.push s!"{c.toString} declaration `{disp}` mentions the raw store operation `{dd}` in its {where_}"
+        out := out.push
+          s!"{c.toString} declaration `{disp}` mentions the raw store operation `{dd}` in its {where_} ({hintRaw})"
       else
         match classesOfUse env raw d with
         | [] =>
           if inNs env nss d then
-            out := out.push s!"{c.toString} declaration `{disp}` mentions unclassified `{dd}` in its {where_}"
+            out := out.push
+              s!"{c.toString} declaration `{disp}` mentions unclassified `{dd}` in its {where_} ({hintUnclassifiedMention})"
         | cs =>
           if cs.any (forbidden c) then
             let what := NPComplete.ApiLayer.layerCheckName raw
-            out := out.push s!"{c.toString} declaration `{disp}` mentions {", ".intercalate (cs.map Cls.toString)} `{what}` in its {where_}"
+            out := out.push
+              s!"{c.toString} declaration `{disp}` mentions {", ".intercalate (cs.map Cls.toString)} `{what}` in its {where_} ({hintMention})"
   return out
 
 def runCheck (stx : Syntax) (nss : Array Name) : CommandElabM Unit := do
@@ -344,11 +448,19 @@ def runCheck (stx : Syntax) (nss : Array Name) : CommandElabM Unit := do
   for n in scopeOf env nss do
     let disp := NPComplete.ApiLayer.layerCheckName n
     match classesOf env n with
-    | [] => logErrorAt stx s!"declaration `{disp}` is not classified (stage_layout, stage_impl, stage_contract, stage_boundary, stage_adapter or stage_unchecked)"
+    | [] =>
+      match defaultOf env n with
+      | some d =>
+        let vs ← liftTermElabM (violationsOf env nss n d.cls)
+        for v in vs do
+          logErrorAt stx s!"{v} (classified by `stage_default{if d.free then "_free" else ""}` of namespace `{d.ns}`)"
+      | none =>
+        logErrorAt stx s!"declaration `{disp}` is not classified (stage_layout, stage_impl, stage_contract, stage_boundary, stage_adapter or stage_unchecked) ({hintUnclassified})"
     | [c] =>
       let vs ← liftTermElabM (violationsOf env nss n c)
       for v in vs do logErrorAt stx v
-    | cs => logErrorAt stx s!"declaration `{disp}` carries more than one classification: {", ".intercalate (cs.map Cls.toString)}"
+    | cs =>
+      logErrorAt stx s!"declaration `{disp}` carries more than one classification: {", ".intercalate (cs.map Cls.toString)} ({hintMulti})"
 
 syntax (name := checkStageDisciplineNs) "#check_stage_discipline " &"ns" (ppSpace ident)+ : command
 
@@ -359,5 +471,46 @@ syntax (name := checkStageDisciplineAll) "#check_stage_discipline " &"all" : com
 
 @[command_elab checkStageDisciplineAll] def elabCheckStageDisciplineAll : CommandElab := fun stx =>
   runCheck stx #[]
+
+/-! ### Registering a default classification
+
+`stage_default <cls>` registers the classification of the untagged declarations of the current
+namespace (and its sub-namespaces).  Only the checked classes can be defaulted this way: a scope
+whose default is `boundary` is *checked* as `boundary`.  The unchecked classes relax the discipline,
+so they must be spelled `stage_default_free <cls>` — a relaxed scope is always visible in the
+source.  An individual tag on a declaration overrides the default; it is the exception mechanism. -/
+
+syntax (name := stageDefault) "stage_default " ident : command
+syntax (name := stageDefaultFree) "stage_default_free " ident : command
+
+def registerDefault (stx : Syntax) (clsIdent : Syntax) (free : Bool) : CommandElabM Unit := do
+  let some cls := Cls.ofIdent clsIdent.getId |
+    throwErrorAt clsIdent
+      s!"unknown classification `{clsIdent.getId}`; expected one of \
+layout, impl, contract, boundary, adapter, unchecked"
+  if free != !cls.checked then
+    if free then
+      throwErrorAt clsIdent
+        s!"{cls.toString} is checked, so its default is enforced; \
+write `stage_default {clsIdent.getId}` (only the unchecked classes need `stage_default_free`)"
+    else
+      throwErrorAt clsIdent
+        s!"{cls.toString} is unchecked: defaulting it would relax the check silently; \
+write `stage_default_free {clsIdent.getId}` to make the relaxed scope explicit"
+  let ns ← getCurrNamespace
+  let env ← getEnv
+  let me := env.header.mainModule
+  for d in stageDefaultExt.getState env do
+    if d.ns == ns && d.modName == me && d.cls != cls then
+      throwErrorAt stx
+        s!"namespace `{ns}` already has a default `{d.cls.toString}`; \
+conflicting defaults would silently reclassify declarations"
+  modifyEnv (stageDefaultExt.addEntry · ⟨me, ns, cls, free⟩)
+
+@[command_elab stageDefault] def elabStageDefault : CommandElab := fun stx =>
+  registerDefault stx stx[1] false
+
+@[command_elab stageDefaultFree] def elabStageDefaultFree : CommandElab := fun stx =>
+  registerDefault stx stx[1] true
 
 end NPComplete.StageDiscipline
