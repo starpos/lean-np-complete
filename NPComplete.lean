@@ -17,6 +17,7 @@ public import NPComplete.CookLevin.PromisePolyDecidable
 public import NPComplete.RAMToTM.PromiseDecidability
 public import NPComplete.RAMToTM.ThreeSat.Pipeline.ThreeSatDecodeBounds
 public import NPComplete.RAMToTM.Generic.Api.OperandBoundOfBounded
+public import NPComplete.RAMToTM.Generic.Api.ValuesLeOn
 public import NPComplete.RAMToTM.Generic.Api.BoundedInMono
 public import NPComplete.RAMToTM.Generic.Api.BoundedSimp
 public import NPComplete.RAMToTM.Generic.Api.SameOff
