@@ -29,10 +29,15 @@ A checked declaration must not
 2. mention `writeReg`, `emptyStore`, `bitInputStore`, an unfolding lemma of the evaluation function
    (`eval_seq` and the like), a raw contract entry (`StageSpec.assign`, `LayoutSpec.of_direct`, ...), build a `Store` by a lambda, or pass a closed `Store` to a function;
 3. mention a `stage_impl` or `stage_adapter` declaration, or an in-scope declaration that carries no
-   tag.
+   tag;
+4. mention a raw constructor (a program builder that takes register numbers as `ℕ`, marked
+   `stage_raw_ctor`), even with layout roles as arguments: the declaration calls the layout wrapper
+   of the constructor instead, which takes the registers as roles.
 
 A layout accessor, a fact or a contract is a boundary of the check: it is classified once where it
-is defined and never unfolded here.
+is defined and never unfolded here.  The layout wrapper of a raw constructor is such a boundary
+too: its body calls the raw constructor and is never read here, so using the wrapper keeps the raw
+constructor invisible.
 
 ## Defaults
 
@@ -387,6 +392,10 @@ def hintRaw :=
   "how to fix: derive the step from a published `stage_contract` instead of the raw semantics, or \
 move this proof into `stage_impl`"
 
+def hintRawCtor :=
+  "how to fix: call the layout wrapper of this constructor (registers as roles of a layout) \
+instead, or move this declaration into `stage_impl`"
+
 def hintMention :=
   "how to fix: use the published contract of the mentioned stage instead, or move this declaration \
 into `stage_impl`"
@@ -427,7 +436,10 @@ def violationsOf (env : Environment) (nss : Array Name) (n : Name) (c : Cls) :
       let dd := NPComplete.ApiLayer.layerCheckName d
       if dd == disp || seen.contains d then continue
       seen := seen.insert d
-      if isRaw dd then
+      if stageRawCtorAttr.hasTag env d then
+        out := out.push
+          s!"{c.toString} declaration `{disp}` mentions the raw constructor `{dd}` in its {where_} ({hintRawCtor})"
+      else if isRaw dd then
         out := out.push
           s!"{c.toString} declaration `{disp}` mentions the raw store operation `{dd}` in its {where_} ({hintRaw})"
       else

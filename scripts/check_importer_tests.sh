@@ -65,6 +65,8 @@ should_fail=(
   'NPCompleteTest/ShouldFail/StageDefaultLenient.lean:stage_default_free'
   'NPCompleteTest/ShouldFail/StageDefaultConflict.lean:conflicting defaults'
   'NPCompleteTest/ShouldFail/StageDefaultMention.lean:mentions stage_impl'
+  'NPCompleteTest/ShouldFail/StageRawCtorNum.lean:mentions the raw constructor `NPComplete.RAMToTM.writeUnaryProgAt`'
+  'NPCompleteTest/ShouldFail/StageRawCtorRole.lean:mentions the raw constructor `NPComplete.RAMToTM.writeUnaryProgAt`'
 )
 for entry in "${should_fail[@]}"; do
   f=${entry%%:*}; needle=${entry#*:}

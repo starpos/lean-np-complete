@@ -27,6 +27,10 @@ satisfies the classification requirement but no other class may mention it.
 `stage_adapter` marks a library entry that imports a raw program and its proof into a bundled
 stage.  Only an implementation declaration may use it.
 
+`stage_raw_ctor` is not a class of the checked declarations: it marks a raw program constructor
+that takes register numbers as `ℕ`.  A boundary or a contract must call the layout wrapper of the
+constructor (roles instead of register numbers) and never the raw constructor itself.
+
 This module imports only `Lean.Attributes` so that any module may import it to classify its
 declarations; the checker lives in `StageDisciplineCheck.lean`.
 -/
@@ -60,5 +64,9 @@ initialize stageAdapterAttr : TagAttribute ←
 initialize stageUncheckedAttr : TagAttribute ←
   registerTagAttribute `stage_unchecked
     "Declaration outside the stage discipline (not migrated); never mentioned by a boundary or a contract."
+
+initialize stageRawCtorAttr : TagAttribute ←
+  registerTagAttribute `stage_raw_ctor
+    "Raw program constructor taking register numbers as `ℕ`; a boundary or a contract calls its layout wrapper instead."
 
 end NPComplete.StageDiscipline
