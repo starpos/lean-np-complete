@@ -47,7 +47,7 @@ rules of its scope's default exactly as if it carried the tag: a default is enfo
 to skip the check.  The innermost namespace with a default wins.  Scopes without a default keep the
 old rule — an untagged declaration is an error.
 
-The strict command admits only the checked classes (`boundary`, `contract`).  The unchecked classes
+The strict command accepts only the checked classes (`boundary`, `contract`).  The unchecked classes
 (`layout`, `impl`, `adapter`, `unchecked`) relax the discipline for whatever follows, so they must
 be spelled `stage_default_free <cls>`: a lenient default is always visible and greppable in the
 source, and never falls out of a strict command.
