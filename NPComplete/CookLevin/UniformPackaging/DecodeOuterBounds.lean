@@ -991,13 +991,10 @@ lemma programBoundedIn_uniformCursorInitProg_of_bounds
 
 lemma programBoundedIn_uniformPostDecodeStatsProg_of_bounds
     (B : ℕ) (σ : Store) (hB25 : 25 ≤ B)
-    (hσ : StoreValuesLe B σ)
     (hmax : σ uctMaxReg + 1 ≤ B)
     (hsum : σ uctMaxReg + 1 + σ uctFreshReg ≤ B) :
     ProgramBoundedIn B σ uniformPostDecodeStatsProg := by
   let σ1 := (Program.assign uctTmpReg (.reg uctFreshReg)).eval σ
-  have hσ1 : StoreValuesLe B σ1 :=
-    storeValuesLe_assign hσ (by simp [Expr.eval]; omega)
   have hmax1 : σ1 uctMaxReg = σ uctMaxReg := by
     simp [σ1, eval_assign, Expr.eval,
       writeReg_diff _ uctTmpReg _ uctMaxReg (by decide)]
@@ -1024,8 +1021,6 @@ lemma programBoundedIn_uniformPostDecodeStatsProg_of_bounds
       exact ⟨hmaxIdx, by omega, by rw [hmax1]; exact hmax⟩
   let σ2 := (Program.ifNZ (.reg uctSeenReg)
       (.assign uctMaxReg (.add (.reg uctMaxReg) (.const 1))) .skip).eval σ1
-  have hσ2 : StoreValuesLe B σ2 :=
-    program_eval_storeValuesLe σ1 _ (by omega) hσ1 hif (by simp [ScanFree])
   have hsum2 : σ2 uctMaxReg + σ2 uctTmpReg ≤ B := by
     rw [show σ2 = (Program.ifNZ (.reg uctSeenReg)
       (.assign uctMaxReg (.add (.reg uctMaxReg) (.const 1))) .skip).eval σ1 from rfl]

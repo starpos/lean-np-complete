@@ -288,7 +288,7 @@ lemma uniform_split_tail_emit_prog_at_reachable_raw_of_window
       ls pref tail addr uctCursorReg uctPolReg uctVarReg uctDoneReg uctRemainingReg
       uctPol2Reg uctVar2Reg uctPol3Reg uctVar3Reg uctCarryPolReg uctCarryValReg
       uctPosPolReg uctFreshReg)
-    (hb : σ uctSavedBoundReg = N) (hσ : StoreValuesLe (uniformEmitLongValueEnvelope N) σ)
+    (hb : σ uctSavedBoundReg = N)
     (hraw : SplitTailEmitStepRawBounds (uniformEmitLongValueEnvelope N)
       (uniformEmitSyntaxEnvelope N) (uniformMNat N) uctCurJ uctTmpJ uctCursorReg uctPolReg
       uctVarReg uctDoneReg uctRemainingReg uctPol2Reg uctVar2Reg uctPol3Reg uctVar3Reg
@@ -305,14 +305,14 @@ lemma uniform_split_tail_emit_prog_at_reachable_raw_of_window
         n σ ∧
       (UniformSplitTailEmitRelRaw N inputEnd baseLimit base' carry' ls' pref' tail addr' τ ∨
        UniformSplitTailEmitDoneRaw N inputEnd baseLimit base' carry' ls' pref' tail addr' τ) := by
-  induction n generalizing base carry ls pref addr σ hbound hrel hb hσ hraw hwin with
+  induction n generalizing base carry ls pref addr σ hbound hrel hb hraw hwin with
   | zero =>
       exact ⟨σ, base, carry, ls, pref, addr, by simp,
         Or.inl ⟨hrel, hbound, hraw, hb, hwin⟩⟩
   | succ n ih =>
       obtain ⟨τ, base', carry', ls', pref', addr', hτ, hstate⟩ := ih
         (base := base) (carry := carry) (ls := ls) (pref := pref) (addr := addr)
-        (σ := σ) hbound hrel hb hσ hraw hwin
+        (σ := σ) hbound hrel hb hraw hwin
       have hsucc :
           loopEval
               (splitTailEmitStepProgAt uctCurJ uctTmpJ uctCursorReg uctPolReg uctVarReg
@@ -391,7 +391,7 @@ lemma programBoundedIn_uniform_splitTailEmitProgAt_of_reach
   intro m hm
   obtain ⟨τ, base', carry', ls', pref', addr', hτ, hstate⟩ :=
     uniform_split_tail_emit_prog_at_reachable_raw_of_window N inputEnd baseLimit base carry ls
-      pref tail addr σ m hbound hrel hb hσ hraw hwin hinputEnd hbaseLimit hend
+      pref tail addr σ m hbound hrel hb hraw hwin hinputEnd hbaseLimit hend
   rw [← hτ]
   rcases hstate with hrel' | hdone'
   · exact programBoundedIn_uniform_split_tail_emit_step_of_raw N τ hrel'.raw
@@ -821,7 +821,6 @@ lemma storeValuesLe_uniform_split_tail_emit_prog_at_of_window_raw
       uctPol2Reg uctVar2Reg uctPol3Reg uctVar3Reg uctCarryPolReg uctCarryValReg
       uctPosPolReg uctFreshReg)
     (hb : σ uctSavedBoundReg = N)
-    (hσ : StoreValuesLe (uniformEmitLongValueEnvelope N) σ)
     (hraw : SplitTailEmitStepRawBounds (uniformEmitLongValueEnvelope N)
       (uniformEmitSyntaxEnvelope N) (uniformMNat N) uctCurJ uctTmpJ uctCursorReg uctPolReg
       uctVarReg uctDoneReg uctRemainingReg uctPol2Reg uctVar2Reg uctPol3Reg uctVar3Reg
@@ -838,7 +837,7 @@ lemma storeValuesLe_uniform_split_tail_emit_prog_at_of_window_raw
         n σ) := by
   obtain ⟨τ, base', carry', ls', pref', addr', hτ, hstate⟩ :=
     uniform_split_tail_emit_prog_at_reachable_raw_of_window N inputEnd baseLimit base carry ls
-      pref tail addr σ n hbound hrel hb hσ hraw hwin hinputEnd hbaseLimit hend
+      pref tail addr σ n hbound hrel hb hraw hwin hinputEnd hbaseLimit hend
   rw [← hτ]
   rcases hstate with hrel' | hdone'
   · exact hrel'.raw.store
@@ -860,7 +859,6 @@ lemma storeValuesLe_uniform_splitTailEmitLongClauseProgAt_of_setup_raw
       uctDoneReg uctRemainingReg uctPol2Reg uctVar2Reg uctPol3Reg uctVar3Reg
       uctCarryPolReg uctCarryValReg uctPosPolReg uctFreshReg)
     (hb : σsetup uctSavedBoundReg = N)
-    (hσ : StoreValuesLe (uniformEmitLongValueEnvelope N) σsetup)
     (hraw : SplitTailEmitStepRawBounds (uniformEmitLongValueEnvelope N)
       (uniformEmitSyntaxEnvelope N) (uniformMNat N) uctCurJ uctTmpJ uctCursorReg uctPolReg
       uctVarReg uctDoneReg uctRemainingReg uctPol2Reg uctVar2Reg uctPol3Reg uctVar3Reg
@@ -874,7 +872,7 @@ lemma storeValuesLe_uniform_splitTailEmitLongClauseProgAt_of_setup_raw
         uctDoneReg uctRemainingReg uctPol2Reg uctVar2Reg uctPol3Reg uctVar3Reg
         uctCarryPolReg uctCarryValReg uctPosPolReg uctFreshReg uctSavedBoundReg).eval σ) := by
   have hloop := storeValuesLe_uniform_split_tail_emit_prog_at_of_window_raw N inputEnd baseLimit
-    base carry ls pref tail addr σsetup (n + 1) hbound hrel hb hσ hraw hwin
+    base carry ls pref tail addr σsetup (n + 1) hbound hrel hb hraw hwin
     hinputEnd hbaseLimit hend
   rw [splitTailEmitLongClauseProgAt, eval_seq, hsetup]
   rw [splitTailEmitProgAt_pos_eval uctCurJ uctTmpJ uctCursorReg uctPolReg uctVarReg

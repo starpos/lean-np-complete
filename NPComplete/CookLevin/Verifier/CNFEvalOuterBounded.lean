@@ -267,7 +267,7 @@ lemma programBoundedIn_decodeCNFEvalClauseStepAt_of_store_bounds_prefix
   have hprefix : ProgramBoundedIn B σ
       (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg) := by
     apply programBoundedIn_decodeClauseWithLengthPrefixAt_of_bounds B cursorReg doneReg
-      remainingReg lengthReg boundReg σ hσ ⟨hci, hdi, hri, hli, hbi⟩
+      remainingReg lengthReg boundReg σ ⟨hci, hdi, hri, hli, hbi⟩
       ⟨hcd, hcl, hld, hbc, hbl, hbd⟩ hbudget
   have hσprefix : StoreValuesLe B
       ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg).eval σ) :=

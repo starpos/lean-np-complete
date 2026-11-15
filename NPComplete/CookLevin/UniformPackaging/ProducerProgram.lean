@@ -90,7 +90,6 @@ lemma programBoundedIn_uniform_producer_setup_append
 
 lemma programBoundedIn_decodeClauseWithLengthPrefixAt_of_bounds
     (B cursorReg doneReg remainingReg lengthReg boundReg : ℕ) (σ : Store)
-    (hσ : StoreValuesLe B σ)
     (hidx : cursorReg ≤ B ∧ doneReg ≤ B ∧ remainingReg ≤ B ∧ lengthReg ≤ B ∧
       boundReg ≤ B)
     (hdist : cursorReg ≠ doneReg ∧ cursorReg ≠ lengthReg ∧ lengthReg ≠ doneReg ∧
@@ -102,10 +101,6 @@ lemma programBoundedIn_decodeClauseWithLengthPrefixAt_of_bounds
   rcases hdist with ⟨hcd, hcl, hld, hbc, hbl, hbd⟩
   let σ0 := (Program.assign doneReg (.const 0)).eval σ
   let σ1 := (Program.assign lengthReg (.const 0)).eval σ0
-  have hσ0 : StoreValuesLe B σ0 := by
-    exact storeValuesLe_assign hσ (by simp [Expr.eval])
-  have hσ1 : StoreValuesLe B σ1 := by
-    exact storeValuesLe_assign hσ0 (by simp [Expr.eval])
   have hσ0b : σ0 boundReg = σ boundReg := by
     simp [σ0, eval_assign, Expr.eval, writeReg_diff _ doneReg _ _ hbd]
   have hσ1b : σ1 boundReg = σ boundReg := by
@@ -124,9 +119,6 @@ lemma programBoundedIn_decodeClauseWithLengthPrefixAt_of_bounds
     · rw [hσ1l, hσ1b]
       omega
   let σ2 := (decodeNatProgramAt cursorReg lengthReg doneReg boundReg).eval σ1
-  have hσ2 : StoreValuesLe B σ2 := by
-    exact program_eval_storeValuesLe σ1 _ (by omega) hσ1 hnat
-      (scanFree_decodeNatProgramAt cursorReg lengthReg doneReg boundReg)
   unfold decodeClauseWithLengthPrefixAt
   simp only [ProgramBoundedIn]
   rw [show (Program.assign doneReg (.const 0)).eval σ = σ0 from rfl]
@@ -388,7 +380,7 @@ lemma programBoundedIn_decodeClauseWithLengthProgramAt_of_input_prefix
       (decodeClauseWithLengthPrefixAt uctCursorReg uctDoneReg uctRemainingReg
         uctLengthReg uctBoundReg) := by
     apply programBoundedIn_decodeClauseWithLengthPrefixAt_of_bounds B uctCursorReg uctDoneReg
-      uctRemainingReg uctLengthReg uctBoundReg τ hσ
+      uctRemainingReg uctLengthReg uctBoundReg τ
       ⟨by simp [uctCursorReg]; omega, by simp [uctDoneReg]; omega,
         by simp [uctRemainingReg]; omega, by simp [uctLengthReg]; omega,
         by simp [uctBoundReg]⟩

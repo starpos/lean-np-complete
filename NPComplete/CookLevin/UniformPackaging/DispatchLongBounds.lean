@@ -1090,7 +1090,7 @@ lemma programBoundedIn_uniform_emit_dispatch_long_branch
       uctCarryPolReg uctCarryValReg uctPosPolReg uctFreshReg uctSavedBoundReg).eval σprep)
     (l3 :: litRest).length rfl hrelSetup.remaining
     (by simp only [List.length_cons]; omega)
-    (fun l hl => hbound l (by simp [hl])) hrelSetup hbSetup hσsetup hraw hwinSetup hinputEnd
+    (fun l hl => hbound l (by simp [hl])) hrelSetup hbSetup hraw hwinSetup hinputEnd
     hbaseLimit hend
   have hcommit := uniform_emit_dispatch_long_branch_commit N _ hpost
   have hprep4 := uniform_emit_dispatch_long_branch_assign_prologue N σdec

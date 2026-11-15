@@ -900,7 +900,7 @@ word-based lemmas above, widened to the `.lt`/`.eq`/`moveOkEParam` wrapper. -/
 one obligation per guard.  `hpK`/`hWK` are what the outer `p`/`W` loops supply
 from their own trip counts (`p < W ≤ K`). -/
 lemma trans_leaf_cond_bounded
-    (M _Jmax K S B _nS _mS nC mC wReg tReg kbReg a1Reg a2Reg T kindBase arg1Base arg2Base
+    (M _Jmax K _S B _nS _mS nC mC wReg tReg kbReg a1Reg a2Reg T kindBase arg1Base arg2Base
       t p qi ai W : ℕ) (colk col1 col2 : List ℕ)
     (hwR : 2 ≤ wReg) (hwR2 : wReg ≤ 23) (hkbR2 : kbReg ≤ 23) (ha1R2 : a1Reg ≤ 23)
     (ha2R2 : a2Reg ≤ 23) (hMB : M + 24 ≤ B)
@@ -913,22 +913,22 @@ lemma trans_leaf_cond_bounded
     (∀ τ : Store, TransFrozen M
         (transParamPins4 wReg tReg kbReg a1Reg a2Reg W T kindBase arg1Base arg2Base
           t p qi ai) kindBase colk arg1Base col1 arg2Base col2 τ →
-      τ 0 = M → TightCells K M τ → StoreValuesLe S τ →
+      τ 0 = M → TightCells K M τ →
       ExprBoundedIn B τ (.eq (transKindEParam kbReg colk.length mC) (.const 0))) ∧
     (∀ τ : Store, TransFrozen M
         (transParamPins4 wReg tReg kbReg a1Reg a2Reg W T kindBase arg1Base arg2Base
           t p qi ai) kindBase colk arg1Base col1 arg2Base col2 τ →
-      τ 0 = M → TightCells K M τ → StoreValuesLe S τ →
+      τ 0 = M → TightCells K M τ →
       ExprBoundedIn B τ (.eq (transKindEParam kbReg colk.length mC) (.const 1))) ∧
     (∀ τ : Store, TransFrozen M
         (transParamPins4 wReg tReg kbReg a1Reg a2Reg W T kindBase arg1Base arg2Base
           t p qi ai) kindBase colk arg1Base col1 arg2Base col2 τ →
-      τ 0 = M → TightCells K M τ → StoreValuesLe S τ →
+      τ 0 = M → TightCells K M τ →
       ExprBoundedIn B τ (.lt (transArg1EParam a1Reg col1.length mC) (.const nC))) ∧
     (∀ τ : Store, TransFrozen M
         (transParamPins4 wReg tReg kbReg a1Reg a2Reg W T kindBase arg1Base arg2Base
           t p qi ai) kindBase colk arg1Base col1 arg2Base col2 τ →
-      τ 0 = M → TightCells K M τ → StoreValuesLe S τ →
+      τ 0 = M → TightCells K M τ →
       ExprBoundedIn B τ (moveOkEParam wReg (ctlCell lvJ1)
         (transArg2EParam a2Reg col2.length mC))) := by
   set pins := transParamPins4 wReg tReg kbReg a1Reg a2Reg W T
@@ -948,28 +948,28 @@ lemma trans_leaf_cond_bounded
     simp [pins, transParamPins4, transParamPins3, transParamPins2, transParamPins1,
       transParamPins0]
   refine ⟨?_, ?_, ?_, ?_⟩
-  · intro τ hF h0 ht hst
+  · intro τ hF h0 ht
     have hbase : τ (M + kbReg) = kindBase := hF.1 (kbReg, kindBase) hkbmem
     refine ⟨(exprBoundedIn_transKindEParam_of_word M K B kbReg kindBase mC colk τ h0
       (ht lvJ2 (by unfold lvJ2; omega) (by unfold lvJ2; omega))
       (ht lvJ3 (by unfold lvJ3; omega) (by unfold lvJ3; omega))
       hbase hF.2.1 hallowedk hkbR2 (by omega) (by omega) hK1mC hlenkB hmCB hkindBaseK).1, ?_⟩
     simp only [ExprBoundedIn]; omega
-  · intro τ hF h0 ht hst
+  · intro τ hF h0 ht
     have hbase : τ (M + kbReg) = kindBase := hF.1 (kbReg, kindBase) hkbmem
     refine ⟨(exprBoundedIn_transKindEParam_of_word M K B kbReg kindBase mC colk τ h0
       (ht lvJ2 (by unfold lvJ2; omega) (by unfold lvJ2; omega))
       (ht lvJ3 (by unfold lvJ3; omega) (by unfold lvJ3; omega))
       hbase hF.2.1 hallowedk hkbR2 (by omega) (by omega) hK1mC hlenkB hmCB hkindBaseK).1, ?_⟩
     simp only [ExprBoundedIn]; omega
-  · intro τ hF h0 ht hst
+  · intro τ hF h0 ht
     have hbase : τ (M + a1Reg) = arg1Base := hF.1 (a1Reg, arg1Base) ha1mem
     refine ⟨(exprBoundedIn_transArg1EParam_of_word M K B a1Reg arg1Base mC col1 τ h0
       (ht lvJ2 (by unfold lvJ2; omega) (by unfold lvJ2; omega))
       (ht lvJ3 (by unfold lvJ3; omega) (by unfold lvJ3; omega))
       hbase hF.2.2.1 hallowed1 ha1R2 (by omega) (by omega) hK1mC hlen1B hmCB harg1BaseK).1, ?_⟩
     simp only [ExprBoundedIn]; omega
-  · intro τ hF h0 ht hst
+  · intro τ hF h0 ht
     have hbase : τ (M + a2Reg) = arg2Base := hF.1 (a2Reg, arg2Base) ha2mem
     have hpv : τ (M + lvJ1) = p := hF.1 (lvJ1, p) hpmem
     have hwv : τ (M + wReg) = W := hF.1 (wReg, W) hwmem
@@ -1049,11 +1049,16 @@ lemma clauseWriterBounded_trans_leaf
     ha1R2 ha2R2 hMB hSB h4S hKS henvB henvS hnS hmS hK1mC hmCB hlen1B hlen2B hallowed1 hallowed2
     harg1BaseK harg2BaseK
   unfold transLeafProgParam
-  refine clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen hcondKind hhalt ?_
-  refine clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen hcondKind1 ?_ ?_
-  · exact clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen hcondArg1 hwrite hforbid30
-  · refine clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen hcondArg1 ?_ hforbid30
-    exact clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen hcondMove hmove hforbid30
+  refine clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen
+    (fun τ hF h0 ht _ => hcondKind τ hF h0 ht) hhalt ?_
+  refine clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen
+    (fun τ hF h0 ht _ => hcondKind1 τ hF h0 ht) ?_ ?_
+  · exact clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen
+      (fun τ hF h0 ht _ => hcondArg1 τ hF h0 ht) hwrite hforbid30
+  · refine clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen
+      (fun τ hF h0 ht _ => hcondArg1 τ hF h0 ht) ?_ hforbid30
+    exact clauseWriterBounded_ifNZ _ _ _ M Jmax wpJ K S B 30 Frozen
+      (fun τ hF h0 ht _ => hcondMove τ hF h0 ht) hmove hforbid30
 
 /-! ## The four range loops
 

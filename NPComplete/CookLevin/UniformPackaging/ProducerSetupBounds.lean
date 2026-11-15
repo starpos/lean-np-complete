@@ -391,7 +391,6 @@ lemma programBoundedIn_uniform_producer_setup_tail
 lemma programBoundedIn_uniformProducerSetupProg_after_decode
     (φ : CNF) (B : ℕ) (σd : Store)
     (hB : uniformEmitDispatchEnvelope (encodeCNF φ).length ≤ B)
-    (hσd : StoreValuesLe B σd)
     (hσd0 : σd 0 = (encodeCNF φ).length)
     (hstats : σd uctMaxReg + 1 ≤ B ∧
       σd uctMaxReg + 1 + σd uctFreshReg ≤ B ∧
@@ -407,24 +406,16 @@ lemma programBoundedIn_uniformProducerSetupProg_after_decode
               (uniformEmitAuxInitProg.seq
                 (uniformFreshFromMaxProg.seq (uniformEmitResetProg.seq Program.skip))))))) := by
   set N := (encodeCNF φ).length
-  have hB1 : 1 ≤ B := by
-    have := uniformEmitDispatchEnvelope_ge_25 N
-    omega
   have hB25 : 25 ≤ B := (uniformEmitDispatchEnvelope_ge_25 N).trans (by simpa [N] using hB)
   let σp := uniformPostDecodeStatsProg.eval σd
   let σs := uniformSaveBoundProg.eval σp
   let σa := uniformSetArenaProg.eval σs
   obtain ⟨hmaxBound, hsumBound, hpreFacts⟩ := hstats
   have hpostBound : ProgramBoundedIn B σd uniformPostDecodeStatsProg :=
-    programBoundedIn_uniformPostDecodeStatsProg_of_bounds B σd hB25 hσd
+    programBoundedIn_uniformPostDecodeStatsProg_of_bounds B σd hB25
       hmaxBound hsumBound
-  have hσp : StoreValuesLe B σp := by
-    exact program_eval_storeValuesLe σd _ hB1 hσd hpostBound
-      scanFree_uniformPostDecodeStatsProg
   have hsaveBound : ProgramBoundedIn B σp uniformSaveBoundProg :=
     programBoundedIn_uniformSaveBoundProg B σp (by simp [uctSavedBoundReg]; omega)
-  have hσs : StoreValuesLe B σs := by
-    exact program_eval_storeValuesLe σp _ hB1 hσp hsaveBound scanFree_uniformSaveBoundProg
   have hσp0 : σp 0 = N := by
     have hf := uniformPostDecodeStatsProg_frame σd (r := 0)
       (by decide) (by decide) (by decide)
@@ -436,29 +427,18 @@ lemma programBoundedIn_uniformProducerSetupProg_after_decode
     exprBoundedIn_uniformME_of_input φ B σs hσsSaved hB
   have hsetBound : ProgramBoundedIn B σs uniformSetArenaProg := by
     exact ⟨by simp, hME⟩
-  have hσa : StoreValuesLe B σa := by
-    exact program_eval_storeValuesLe σs _ hB1 hσs hsetBound
-      (by simp [ScanFree, uniformSetArenaProg])
   let pStart := secondPassStartupProgramAt uctCursorReg uctInputBaseReg uctOuterReg
     uctDoneReg uctSavedBoundReg uctCurJ uctTmpJ uniformStartE uctFreshReg uctCountReg
   have hstartup : ProgramBoundedIn B σa pStart := by
     simpa [pStart, N] using
       programBoundedIn_uniform_second_pass_startup_of_pre_startup φ B σa hB hpreFacts
   let σst := pStart.eval σa
-  have hσst : StoreValuesLe B σst := by
-    exact program_eval_storeValuesLe σa _ hB1 hσa hstartup
-      (scanFree_secondPassStartupProgramAt uctCursorReg uctInputBaseReg uctOuterReg uctDoneReg
-        uctSavedBoundReg uctCurJ uctTmpJ uniformStartE uctFreshReg uctCountReg)
   let σx := uniformEmitAuxInitProg.eval σst
   have haux : ProgramBoundedIn B σst uniformEmitAuxInitProg :=
     programBoundedIn_uniformEmitAuxInitProg B σst hB25
-  have hσx : StoreValuesLe B σx := by
-    exact program_eval_storeValuesLe σst _ hB1 hσst haux scanFree_uniformEmitAuxInitProg
   let σf := uniformFreshFromMaxProg.eval σx
   have hfresh : ProgramBoundedIn B σx uniformFreshFromMaxProg :=
     programBoundedIn_uniformFreshFromMaxProg B σx hB25
-  have hσf : StoreValuesLe B σf := by
-    exact program_eval_storeValuesLe σx _ hB1 hσx hfresh scanFree_uniformFreshFromMaxProg
   have hreset : ProgramBoundedIn B σf uniformEmitResetProg :=
     programBoundedIn_uniformEmitResetProg B σf hB25
   exact programBoundedIn_uniform_producer_setup_tail B σd pStart hpostBound
@@ -490,7 +470,7 @@ lemma programBoundedIn_uniformProducerSetupProg
       ProgramBoundedIn B σC uniformControlInitProg ∧
       ProgramBoundedIn B σ0 decoder ∧ StoreValuesLe B σd := by
     simpa [σd, decoder, σ0, σC, σR, σI, bits] using hprefix
-  obtain ⟨hreloc, hcursor, hcontrol, hdecode, hσd⟩ := hprefix'
+  obtain ⟨hreloc, hcursor, hcontrol, hdecode, _⟩ := hprefix'
   have h0R : σR 0 = N := by
     simpa [σR, σI, bits, N] using (uniformRelocateProg_bitInputStore bits).1
   have hσ0root : σ0 0 = N := by
@@ -510,7 +490,7 @@ lemma programBoundedIn_uniformProducerSetupProg
       σd uctMaxReg + 1 + σd uctFreshReg ≤ B ∧
       UniformProducerPreStartupFacts φ N σa := by
     simpa [σa, σs, σp, σd, decoder, σ0, σC, σR, σI, bits, N] using hstats
-  have htail := programBoundedIn_uniformProducerSetupProg_after_decode φ B σd hB hσd
+  have htail := programBoundedIn_uniformProducerSetupProg_after_decode φ B σd hB
     (by simpa [N, bits] using hσd0)
     (by simpa [σa, σs, σp, N, bits] using hstats')
   unfold uniformProducerSetupProg uniformProducerSetupWith
