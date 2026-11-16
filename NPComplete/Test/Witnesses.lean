@@ -7,6 +7,7 @@ public import NPComplete.CookLevin.ReductionProg.Clauses.ClauseLeafAtLeastOneChe
 public import NPComplete.CookLevin.ReductionProg.Clauses.ClauseLeafCheck
 public import NPComplete.CookLevin.ReductionProg.GeneratorDecider
 public import NPComplete.Test.ClauseLayoutWitnesses
+public import NPComplete.Test.CNFEvalStagesWitnesses
 public import NPComplete.Test.CookLevinDropWitnesses
 public import NPComplete.Test.GeneratorBoundedWitnesses
 public import NPComplete.Test.GeneratorWitnesses

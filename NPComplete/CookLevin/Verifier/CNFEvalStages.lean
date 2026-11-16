@@ -479,50 +479,58 @@ values).  No stage assumes a global store bound; the composition replaces the ma
 unfolding of the evaluator's `ProgramBoundedIn`. -/
 
 /-- The local resource facts of one evaluator store: the budget cells are bounded by `B`
-(`ValuesLeOn`) and pinned to the entry store's `wBase`/`bound`/`cursor` values. -/
-@[stage_impl] def decodeCNFEvalResBounds (B cursorReg wBaseReg boundReg : ℕ) (σ : Store) :
+(`ValuesLeOn`) and pinned to the entry store's values; the scratch cell is pinned without a
+value bound, as no resource computation reads it. -/
+@[stage_impl] def decodeCNFEvalResBounds (B : ℕ) (reg : CNFEvalRole → ℕ) (σ : Store) :
     Store → Prop :=
-  fun τ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} τ ∧ τ wBaseReg = σ wBaseReg
-    ∧ τ boundReg = σ boundReg ∧ τ cursorReg = σ cursorReg
+  fun τ => ValuesLeOn B {reg .wBase, reg .bound, reg .cursor} τ ∧
+    τ (reg .wBase) = σ (reg .wBase) ∧ τ (reg .bound) = σ (reg .bound)
+      ∧ τ (reg .cursor) = σ (reg .cursor) ∧ τ (reg .scratch) = σ (reg .scratch)
 
 /-- The value-fixing pins of one evaluator store, assembled from cells. -/
-def decodeCNFEvalPins (wBaseReg boundReg cursorReg : ℕ) (σ : Store) : StoreFact :=
-  StoreFact.bigAnd [StoreFact.cell wBaseReg (σ wBaseReg), StoreFact.cell boundReg (σ boundReg),
-    StoreFact.cell cursorReg (σ cursorReg)]
+def decodeCNFEvalPins (reg : CNFEvalRole → ℕ) (σ : Store) : StoreFact :=
+  StoreFact.bigAnd [StoreFact.cell (reg .wBase) (σ (reg .wBase)),
+    StoreFact.cell (reg .bound) (σ (reg .bound)), StoreFact.cell (reg .cursor) (σ (reg .cursor)),
+    StoreFact.cell (reg .scratch) (σ (reg .scratch))]
 
 /-- The facts carried at the composition entry: the budget cells bounded and pinned. -/
-def decodeCNFEvalEntryFacts (B cursorReg wBaseReg boundReg : ℕ) (σ : Store) : Store → Prop :=
-  fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧
-    (decodeCNFEvalPins wBaseReg boundReg cursorReg σ).holds ρ
+def decodeCNFEvalEntryFacts (B : ℕ) (reg : CNFEvalRole → ℕ) (σ : Store) : Store → Prop :=
+  fun ρ => ValuesLeOn B {reg .wBase, reg .bound, reg .cursor} ρ ∧
+    (decodeCNFEvalPins reg σ).holds ρ
 
 /-- The facts carried after the done seed. -/
-def decodeCNFEvalDoneFacts (B cursorReg wBaseReg boundReg doneReg : ℕ) (σ : Store) :
+def decodeCNFEvalDoneFacts (B : ℕ) (reg : CNFEvalRole → ℕ) (σ : Store) :
     Store → Prop :=
-  fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧
-    ((decodeCNFEvalPins wBaseReg boundReg cursorReg σ).holds ρ ∧ ρ doneReg = 0)
+  fun ρ => ValuesLeOn B {reg .wBase, reg .bound, reg .cursor} ρ ∧
+    ((decodeCNFEvalPins reg σ).holds ρ ∧ ρ (reg .done) = 0)
 
-/-- The facts carried after the outer-count seed: the `wBase`/`bound` pins, the cursor
-relaxed to a bound and the count role seeded. -/
-def decodeCNFEvalSeededFacts (B cursorReg wBaseReg boundReg outerReg : ℕ) (σ : Store) :
+/-- The facts carried after the outer-count seed: the `wBase`/`scratch`/`bound` pins, the
+cursor relaxed to a bound and the count role seeded. -/
+def decodeCNFEvalSeededFacts (B : ℕ) (reg : CNFEvalRole → ℕ) (σ : Store) :
     Store → Prop :=
-  fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧
-    ((StoreFact.cell wBaseReg (σ wBaseReg)).holds ρ ∧
-      (ρ cursorReg ≤ σ cursorReg ∧
-        ((StoreFact.cell boundReg (σ boundReg)).holds ρ ∧ (StoreFact.cell outerReg 0).holds ρ)))
+  fun ρ => ValuesLeOn B {reg .wBase, reg .bound, reg .cursor} ρ ∧
+    (((StoreFact.cell (reg .wBase) (σ (reg .wBase))).holds ρ ∧
+        (StoreFact.cell (reg .scratch) (σ (reg .scratch))).holds ρ) ∧
+      (ρ (reg .cursor) ≤ σ (reg .cursor) ∧
+        ((StoreFact.cell (reg .bound) (σ (reg .bound))).holds ρ ∧
+          (StoreFact.cell (reg .outer) 0).holds ρ)))
 
-/-- The facts carried after the count decode: the `wBase`/`bound` pins and the cursor/counter
-growth bounds. -/
-def decodeCNFEvalDecodedFacts (B cursorReg wBaseReg boundReg outerReg : ℕ) (σ : Store) :
+/-- The facts carried after the count decode: the `wBase`/`scratch`/`bound` pins and the
+cursor/counter growth bounds. -/
+def decodeCNFEvalDecodedFacts (B : ℕ) (reg : CNFEvalRole → ℕ) (σ : Store) :
     Store → Prop :=
-  fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧
-    ((StoreFact.cell wBaseReg (σ wBaseReg)).holds ρ ∧
-      ((StoreFact.cell boundReg (σ boundReg)).holds ρ ∧
-        (ρ cursorReg ≤ σ cursorReg + σ boundReg ∧ ρ outerReg ≤ 0 + σ boundReg)))
+  fun ρ => ValuesLeOn B {reg .wBase, reg .bound, reg .cursor} ρ ∧
+    (((StoreFact.cell (reg .wBase) (σ (reg .wBase))).holds ρ ∧
+        (StoreFact.cell (reg .scratch) (σ (reg .scratch))).holds ρ) ∧
+      ((StoreFact.cell (reg .bound) (σ (reg .bound))).holds ρ ∧
+        (ρ (reg .cursor) ≤ σ (reg .cursor) + σ (reg .bound) ∧
+          ρ (reg .outer) ≤ 0 + σ (reg .bound))))
 
 /-- The register pairs the program's resource proof separates: the clause loop's plus the
-count-role pairs. -/
+count-role pairs and the scratch pairs read by the carried pins. -/
 def progPairs : List (CNFEvalRole × CNFEvalRole) :=
-  clauseLoopPairs ++ [(.cursor, .outer), (.done, .outer), (.outer, .bound), (.outer, .wBase)]
+  clauseLoopPairs ++ [(.cursor, .outer), (.done, .outer), (.outer, .bound), (.outer, .wBase),
+    (.scratch, .done), (.scratch, .outer), (.scratch, .cursor)]
 
 /-- The roles the program's resource proof indexes. -/
 def progUsed : Set CNFEvalRole := clauseLoopUsed
@@ -542,7 +550,8 @@ lemma progPairs_ne (a b : CNFEvalRole) (h : (a, b) ∈ progPairs) : a ≠ b := b
   rcases h with h | h
   · exact clauseLoopPairs_ne a b h
   · simp only [List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
+    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
+      ⟨rfl, rfl⟩ | hm
     all_goals first | decide | nomatch hm
 
 /-- The evaluator's resource composition at a role assignment: one proof against `reg`, from
@@ -551,7 +560,7 @@ the pairs it separates and the index bounds of the roles it names. -/
     (B : ℕ) (reg : CNFEvalRole → ℕ) (σ : Store)
     (hsep : Separates reg progPairs) (hidx : RegsLe reg progUsed B)
     (hb : decodeCNFEvalBudgets B (σ (reg .cursor)) (σ (reg .wBase)) (σ (reg .bound))) :
-    StageSpec B (decodeCNFEvalResBounds B (reg .cursor) (reg .wBase) (reg .bound) σ)
+    StageSpec B (decodeCNFEvalResBounds B reg σ)
       (decodeCNFEvalProgramAtL reg)
       (({reg .done} : Set ℕ) ∪ ({reg .outer} ∪
         ((fun r => r = reg .cursor ∨ r = reg .outer ∨ r = reg .done) ∪
@@ -566,36 +575,45 @@ the pairs it separates and the index bounds of the roles it names. -/
   rcases (⟨hsep .cursor .pol (by decide : (.cursor, .pol) ∈ progPairs), hsep .cursor .var (by decide : (.cursor, .var) ∈ progPairs), hsep .cursor .done (by decide : (.cursor, .done) ∈ progPairs), hsep .var .done (by decide : (.var, .done) ∈ progPairs), hsep .bound .cursor (by decide : (.bound, .cursor) ∈ progPairs), hsep .bound .pol (by decide : (.bound, .pol) ∈ progPairs), hsep .bound .var (by decide : (.bound, .var) ∈ progPairs), hsep .bound .done (by decide : (.bound, .done) ∈ progPairs), hsep .bound .remaining (by decide : (.bound, .remaining) ∈ progPairs), hsep .cursor .length (by decide : (.cursor, .length) ∈ progPairs), hsep .length .done (by decide : (.length, .done) ∈ progPairs), hsep .remaining .cursor (by decide : (.remaining, .cursor) ∈ progPairs), hsep .cursor .bit (by decide : (.cursor, .bit) ∈ progPairs), hsep .cursor .val (by decide : (.cursor, .val) ∈ progPairs), (hsep .sat .cursor (by decide : (.sat, .cursor) ∈ progPairs)).symm, hsep .bound .length (by decide : (.bound, .length) ∈ progPairs), hsep .bound .bit (by decide : (.bound, .bit) ∈ progPairs), hsep .bound .val (by decide : (.bound, .val) ∈ progPairs), (hsep .sat .bound (by decide : (.sat, .bound) ∈ progPairs)).symm, hsep .bound .cnf (by decide : (.bound, .cnf) ∈ progPairs), hsep .cursor .cnf (by decide : (.cursor, .cnf) ∈ progPairs), (hsep .sat .remaining (by decide : (.sat, .remaining) ∈ progPairs)).symm, hsep .sat .done (by decide : (.sat, .done) ∈ progPairs), hsep .sat .length (by decide : (.sat, .length) ∈ progPairs), hsep .cursor .wBase (by decide : (.cursor, .wBase) ∈ progPairs), hsep .pol .wBase (by decide : (.pol, .wBase) ∈ progPairs), hsep .var .wBase (by decide : (.var, .wBase) ∈ progPairs), hsep .done .wBase (by decide : (.done, .wBase) ∈ progPairs), hsep .remaining .wBase (by decide : (.remaining, .wBase) ∈ progPairs), hsep .bit .wBase (by decide : (.bit, .wBase) ∈ progPairs), hsep .val .wBase (by decide : (.val, .wBase) ∈ progPairs), hsep .sat .wBase (by decide : (.sat, .wBase) ∈ progPairs), hsep .length .wBase (by decide : (.length, .wBase) ∈ progPairs), hsep .cnf .wBase (by decide : (.cnf, .wBase) ∈ progPairs), hsep .remaining .var (by decide : (.remaining, .var) ∈ progPairs), hsep .cursor .outer (by decide : (.cursor, .outer) ∈ progPairs), hsep .done .outer (by decide : (.done, .outer) ∈ progPairs), hsep .outer .bound (by decide : (.outer, .bound) ∈ progPairs), hsep .outer .wBase (by decide : (.outer, .wBase) ∈ progPairs), hsep .remaining .pol (by decide : (.remaining, .pol) ∈ progPairs), hsep .remaining .done (by decide : (.remaining, .done) ∈ progPairs), hsep .remaining .bit (by decide : (.remaining, .bit) ∈ progPairs), hsep .remaining .val (by decide : (.remaining, .val) ∈ progPairs)⟩ :
       _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _) with
     ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr, hcl, hld, hrc, hcbit, hcval, hcsat, hbl, hbb, hbval, hbs, hbk, hck, hrs, hsd, hsl, hcw, hpw, hvw, hdw, hrw, hbw, hvalw, hsw, hlw, hkw, hrv, hco, hdo, hoBnd, how, hrp, hrd, hrbit, hrval⟩
+  have hskd : reg .scratch ≠ reg .done :=
+    hsep .scratch .done (by decide : (.scratch, .done) ∈ progPairs)
+  have hsko : reg .scratch ≠ reg .outer :=
+    hsep .scratch .outer (by decide : (.scratch, .outer) ∈ progPairs)
+  have hskc : reg .scratch ≠ reg .cursor :=
+    hsep .scratch .cursor (by decide : (.scratch, .cursor) ∈ progPairs)
   have hC1 : ReadsOnly (fun a => a ≠ (reg .done))
-      (decodeCNFEvalPins (reg .wBase) (reg .bound) (reg .cursor) σ).holds := by
+      (decodeCNFEvalPins reg σ).holds := by
     intro τ τ' he hτ
     exact ⟨(he (reg .wBase) hdw.symm).trans hτ.1, (he (reg .bound) hbd).trans hτ.2.1,
-      (he (reg .cursor) hcd).trans hτ.2.2⟩
+      (he (reg .cursor) hcd).trans hτ.2.2.1, (he (reg .scratch) hskd).trans hτ.2.2.2⟩
   have s1 : StageSpec B
-      (decodeCNFEvalEntryFacts B (reg .cursor) (reg .wBase) (reg .bound) σ)
+      (decodeCNFEvalEntryFacts B reg σ)
       (Program.assign (reg .done) (.const 0)) {(reg .done)}
-      (decodeCNFEvalDoneFacts B (reg .cursor) (reg .wBase) (reg .bound) (reg .done) σ) :=
+      (decodeCNFEvalDoneFacts B reg σ) :=
     StageSpec.assign_const_carry (S := {(reg .wBase), (reg .bound), (reg .cursor)}) hdi (by omega) hC1
   have hC2 : ReadsOnly (fun a => a ≠ (reg .outer))
-      (fun ρ => (decodeCNFEvalPins (reg .wBase) (reg .bound) (reg .cursor) σ).holds ρ ∧
+      (fun ρ => (decodeCNFEvalPins reg σ).holds ρ ∧
         ρ (reg .done) = 0) := by
     intro τ τ' he hτ
     exact ⟨⟨(he (reg .wBase) how.symm).trans hτ.1.1, (he (reg .bound) hoBnd.symm).trans hτ.1.2.1,
-      (he (reg .cursor) hco).trans hτ.1.2.2⟩, (he (reg .done) hdo).trans hτ.2⟩
+      (he (reg .cursor) hco).trans hτ.1.2.2.1, (he (reg .scratch) hsko).trans hτ.1.2.2.2⟩,
+      (he (reg .done) hdo).trans hτ.2⟩
   have s2 : StageSpec B
-      (decodeCNFEvalDoneFacts B (reg .cursor) (reg .wBase) (reg .bound) (reg .done) σ)
+      (decodeCNFEvalDoneFacts B reg σ)
       (Program.assign (reg .outer) (.const 0)) {(reg .outer)}
-      (decodeCNFEvalSeededFacts B (reg .cursor) (reg .wBase) (reg .bound) (reg .outer) σ) :=
+      (decodeCNFEvalSeededFacts B reg σ) :=
     (StageSpec.assign_const_carry (S := {(reg .wBase), (reg .bound), (reg .cursor)}) hoi (by omega)
       hC2).weaken (fun _ => id) (fun r => id) (fun ρ hρ => by
       obtain ⟨hvals, hpins, hout⟩ := hρ
-      obtain ⟨⟨hw, hb, hc⟩, hdone⟩ := hpins
+      obtain ⟨⟨hw, hb, hc, hs⟩, hdone⟩ := hpins
       have hc' : ρ (reg .cursor) = σ (reg .cursor) := hc
-      exact ⟨hvals, hw, by omega, hb, hout⟩)
+      exact ⟨hvals, ⟨hw, hs⟩, by omega, hb, hout⟩)
   have hC3 : ReadsOnly (fun a => a ≠ (reg .cursor) ∧ a ≠ (reg .outer) ∧ a ≠ (reg .done))
-      (StoreFact.cell (reg .wBase) (σ (reg .wBase))).holds := by
-    intro τ τ' he hτ
-    exact (he (reg .wBase) ⟨hcw.symm, how.symm, hdw.symm⟩).trans hτ
+      (fun ρ => (StoreFact.cell (reg .wBase) (σ (reg .wBase))).holds ρ ∧
+        (StoreFact.cell (reg .scratch) (σ (reg .scratch))).holds ρ) := by
+    intro τ τ' he ⟨hw, hs⟩
+    exact ⟨(he (reg .wBase) ⟨hcw.symm, how.symm, hdw.symm⟩).trans hw,
+      (he (reg .scratch) ⟨hskc, hsko, hskd⟩).trans hs⟩
   have hdS : (reg .done) ∉ ({(reg .wBase), (reg .bound), (reg .cursor)} : Set ℕ) := by
     intro h
     simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at h
@@ -604,16 +622,16 @@ the pairs it separates and the index bounds of the roles it names. -/
     · exact hbd.symm h
     · exact hcd.symm h
   have s3 : StageSpec B
-      (decodeCNFEvalSeededFacts B (reg .cursor) (reg .wBase) (reg .bound) (reg .outer) σ)
+      (decodeCNFEvalSeededFacts B reg σ)
       (decodeNatProgramAt (reg .cursor) (reg .outer) (reg .done) (reg .bound))
       (fun r => r = (reg .cursor) ∨ r = (reg .outer) ∨ r = (reg .done))
-      (decodeCNFEvalDecodedFacts B (reg .cursor) (reg .wBase) (reg .bound) (reg .outer) σ) :=
+      (decodeCNFEvalDecodedFacts B reg σ) :=
     StageSpec.decodeUnaryAt (cg := σ (reg .cursor)) (k0 := 0) (lrv := σ (reg .bound))
       (c := (reg .cursor)) (k := (reg .outer)) (d := (reg .done)) (lr := (reg .bound))
       (S := {(reg .wBase), (reg .bound), (reg .cursor)}) hco hcd hdo.symm
       ⟨hbc, hoBnd.symm, hbd⟩ ⟨hci, hoi, hdi, hbi⟩ hC3 hdS (by omega) (by omega)
   have s4 : StageSpec B
-      (decodeCNFEvalDecodedFacts B (reg .cursor) (reg .wBase) (reg .bound) (reg .outer) σ)
+      (decodeCNFEvalDecodedFacts B reg σ)
       (Program.forN (.reg (reg .outer))
         (decodeCNFEvalClauseStepAt (reg .cursor) (reg .pol) (reg .var) (reg .done) (reg .remaining) (reg .sat) (reg .bit)
           (reg .val) (reg .wBase) (reg .length) (reg .cnf) (reg .bound)))
@@ -634,7 +652,7 @@ the pairs it separates and the index bounds of the roles it names. -/
           fun h => hr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h)))))))))⟩)
       exact decodeCNFEvalClauseStepAt_avoids_frame (reg .cursor) (reg .pol) (reg .var) (reg .done) (reg .remaining)
         (reg .sat) (reg .bit) (reg .val) (reg .wBase) (reg .length) (reg .cnf) (reg .bound)
-    · obtain ⟨hvals, hwρ, hbdρ, hcurρ, houtρ⟩ := hρ
+    · obtain ⟨hvals, ⟨hwρ, _⟩, hbdρ, hcurρ, houtρ⟩ := hρ
       exact programBoundedIn_decodeCNFEvalClauseLoop_core B reg
         (σ (reg .cursor) + σ (reg .bound)) (σ (reg .wBase)) (σ (reg .bound)) ρ
         (Separates.of_subset hsep clauseLoopPairs_subset_progPairs)
@@ -646,7 +664,7 @@ wholesale from the layout. -/
 @[stage_impl] lemma decodeCNFEvalProgramAt_resource_stage_layout
     (R : RegLayout CNFEvalRole) (B : ℕ) (σ : Store) (hRB : R.top ≤ B + 1)
     (hb : decodeCNFEvalBudgets B (σ (R.reg .cursor)) (σ (R.reg .wBase)) (σ (R.reg .bound))) :
-    StageSpec B (decodeCNFEvalResBounds B (R.reg .cursor) (R.reg .wBase) (R.reg .bound) σ)
+    StageSpec B (decodeCNFEvalResBounds B R.reg σ)
       (decodeCNFEvalProgramAtL R.reg)
       (({R.reg .done} : Set ℕ) ∪ ({R.reg .outer} ∪
         ((fun r => r = R.reg .cursor ∨ r = R.reg .outer ∨ r = R.reg .done) ∪
@@ -675,7 +693,7 @@ component read off at the entry store. -/
         · rw [Set.mem_singleton_iff] at h
           subst h
           omega,
-      rfl, rfl, rfl⟩).2.2
+      rfl, rfl, rfl, rfl⟩).2.2
 
 /-- Layout version of the program's resource core: separation and index bounds come
 wholesale from the layout. -/
