@@ -32,11 +32,11 @@ lemma scanFree_literalValueProg (polReg bitReg valReg : ℕ) :
     ScanFree (literalValueProg polReg bitReg valReg) := by
   simp [ScanFree, literalValueProg]
 
-/-- **Local-bounds body.** `programBoundedIn_decodeClauseEvalStepAt_of_store_bounds` with the
-store hypothesis replaced by the bounds on the two cells whose values enter operands: the
-`regInd` address cell `cursorReg` at the entry store, and `remainingReg` at the store the
-literal decoder leaves (the `sub` operand of the guarded step).  The intermediate global
-preservation (`StoreValuesLe` of the literal decoder's output) is dead weight. -/
+/-- **Local-bounds body.** The clause-step leaf with a local premise: bounds on the two cells
+whose values enter operands, the `regInd` address cell `cursorReg` at the entry store, and
+`remainingReg` at the store the literal decoder leaves (the `sub` operand of the guarded
+step).  The intermediate global preservation (`StoreValuesLe` of the literal decoder's
+output) is dead weight. -/
 lemma programBoundedIn_decodeClauseEvalStepAt_of_local_bounds
     (B cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg boundReg : ℕ)
     (σ : Store)
@@ -98,128 +98,6 @@ lemma programBoundedIn_decodeClauseEvalStepAt_of_local_bounds
   unfold orIntoProg
   simp only [ProgramBoundedIn, ExprBoundedIn]
   exact ⟨hvali, ⟨hsi, hB1⟩, trivial⟩
-
-/-- Wrapper over `programBoundedIn_decodeClauseEvalStepAt_of_local_bounds` at a global store
-bound: `StoreValuesLe` supplies the two local bounds the body needs (the second through
-global preservation of the literal decoder). -/
-lemma programBoundedIn_decodeClauseEvalStepAt_of_store_bounds
-    (B cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg boundReg : ℕ)
-    (σ : Store) (hσ : StoreValuesLe B σ)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hrv : remainingReg ≠ varReg)
-    (hbudget : σ cursorReg + 1 + σ boundReg ≤ B)
-    (hwbudget : σ wBaseReg + σ boundReg ≤ B) :
-    ProgramBoundedIn B σ
-      (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg
-        wBaseReg boundReg) := by
-  have hB1 : 1 ≤ B := by omega
-  have hlit := programBoundedIn_decodeLiteralValueProgramAt_of_bounds B cursorReg polReg
-    varReg doneReg boundReg σ
-    ⟨hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2.1, hidx.2.2.2.2.2.2.2.2.2⟩
-    hdist hB1 hσ hbudget
-  have hσlit : StoreValuesLe B
-      ((decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval σ) :=
-    program_eval_storeValuesLe σ _ hB1 hσ hlit
-      (scanFree_decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg)
-  exact programBoundedIn_decodeClauseEvalStepAt_of_local_bounds B cursorReg polReg varReg doneReg
-    remainingReg satReg bitReg valReg wBaseReg boundReg σ hidx hdist hcw hpw hvw hdw hrw hrv
-    (hσ cursorReg) (hσlit remainingReg) hbudget hwbudget
-
-/-- `decodeClauseEvalWithLengthProgramAt` keeps every address/value `≤ B`: decode the
-    length prefix, then bound the per-literal AND/OR loop at every prefix count via
-    `programBoundedIn_decodeClauseEvalStepAt_of_store_bounds`. Mirrors
-    `programBoundedIn_decodeClauseWithLengthProgramAt_of_invariants`, swapping the
-    max-tracking step for the OR-accumulator/certificate-read step. -/
-lemma programBoundedIn_decodeClauseEvalWithLengthProgramAt_of_invariants
-    (B cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg
-      lengthReg boundReg : ℕ) (σ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
-      lengthReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg ∧ boundReg ≠ remainingReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hrv : remainingReg ≠ varReg)
-    (hprefix : ProgramBoundedIn B σ
-      (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg))
-    (hsatFrame : satReg ≠ cursorReg ∧ satReg ≠ doneReg ∧ satReg ≠ remainingReg ∧
-      satReg ≠ lengthReg ∧ satReg ≠ boundReg)
-    (hwbudget : ∀ m ≤
-        (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg).eval σ
-          remainingReg,
-      (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ))) wBaseReg +
-        (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ))) boundReg ≤ B)
-    (hbudget : ∀ m <
-        (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg).eval σ
-          remainingReg,
-      (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ))) cursorReg + 1 +
-        (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ))) boundReg ≤ B)
-    (hstoreLoop : ∀ m ≤
-        (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg).eval σ
-          remainingReg,
-      StoreValuesLe B
-        (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ)))) :
-    ProgramBoundedIn B σ
-      (decodeClauseEvalWithLengthProgramAt cursorReg polReg varReg doneReg remainingReg satReg
-        bitReg valReg wBaseReg lengthReg boundReg) := by
-  rcases hsatFrame with ⟨hsc, hsd, hsr, hsl, hsb⟩
-  unfold decodeClauseEvalWithLengthProgramAt
-  simp only [ProgramBoundedIn, ExprBoundedIn]
-  refine ⟨hprefix, ⟨hidx.2.2.2.2.2.1, Nat.zero_le B⟩, hidx.2.2.2.2.1, ?_⟩
-  set σ0 :=
-    (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg).eval σ
-    with hσ0def
-  set σ1 := (Program.assign satReg (.const 0)).eval σ0 with hσ1def
-  have hσ1rem : σ1 remainingReg = σ0 remainingReg := by
-    rw [hσ1def, eval_assign, Expr.eval]
-    exact writeReg_diff σ0 satReg 0 remainingReg (Ne.symm hsr)
-  simp only [Expr.eval, hσ1rem]
-  intro m hm
-  exact programBoundedIn_decodeClauseEvalStepAt_of_store_bounds B cursorReg polReg varReg doneReg
-    remainingReg satReg bitReg valReg wBaseReg boundReg _ (hstoreLoop m (by omega))
-    ⟨hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2.1, hidx.2.2.2.2.1, hidx.2.2.2.2.2.1,
-      hidx.2.2.2.2.2.2.1, hidx.2.2.2.2.2.2.2.1, hidx.2.2.2.2.2.2.2.2.1,
-      hidx.2.2.2.2.2.2.2.2.2.2⟩
-    ⟨hdist.1, hdist.2.1, hdist.2.2.1, hdist.2.2.2.1, hdist.2.2.2.2.1, hdist.2.2.2.2.2.1,
-      hdist.2.2.2.2.2.2.1, hdist.2.2.2.2.2.2.2.1⟩
-    hcw hpw hvw hdw hrw hrv (hbudget m hm) (hwbudget m (by omega))
-
 /-- `andIntoProg` is trivially `ProgramBoundedIn` at every store: its only write is
     `cnfReg := 0`, checked unconditionally by `ProgramBoundedIn` regardless of the
     guard (`ProgramBoundedIn` checks unselected branches). -/
@@ -229,85 +107,5 @@ lemma programBoundedIn_andIntoProg (B clauseSatReg cnfReg : ℕ) (σ : Store)
   unfold andIntoProg
   simp only [ProgramBoundedIn, ExprBoundedIn]
   exact ⟨hsi, trivial, hci, Nat.zero_le B⟩
-
-
-/-- `decodeCNFEvalClauseStepAt` keeps every address/value `≤ B`: the length-prefixed
-    clause decode/eval (`programBoundedIn_decodeClauseEvalWithLengthProgramAt_of_invariants`)
-    followed by the trivially-bounded AND-accumulator step. -/
-lemma programBoundedIn_decodeCNFEvalClauseStepAt_of_invariants
-    (B cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg
-      lengthReg cnfReg boundReg : ℕ) (σ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
-      lengthReg ≤ B ∧ cnfReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg ∧ boundReg ≠ remainingReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hrv : remainingReg ≠ varReg)
-    (hprefix : ProgramBoundedIn B σ
-      (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg))
-    (hsatFrame : satReg ≠ cursorReg ∧ satReg ≠ doneReg ∧ satReg ≠ remainingReg ∧
-      satReg ≠ lengthReg ∧ satReg ≠ boundReg)
-    (hwbudget : ∀ m ≤
-        (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg).eval σ
-          remainingReg,
-      (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ))) wBaseReg +
-        (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ))) boundReg ≤ B)
-    (hbudget : ∀ m <
-        (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg).eval σ
-          remainingReg,
-      (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ))) cursorReg + 1 +
-        (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ))) boundReg ≤ B)
-    (hstoreLoop : ∀ m ≤
-        (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg).eval σ
-          remainingReg,
-      StoreValuesLe B
-        (loopEval
-          (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-            valReg wBaseReg boundReg)
-          m
-          ((Program.assign satReg (.const 0)).eval
-            ((decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
-              boundReg).eval σ)))) :
-    ProgramBoundedIn B σ
-      (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-        valReg wBaseReg lengthReg cnfReg boundReg) := by
-  have hclause := programBoundedIn_decodeClauseEvalWithLengthProgramAt_of_invariants B cursorReg
-    polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg lengthReg boundReg σ
-    ⟨hidx.1, hidx.2.1, hidx.2.2.1, hidx.2.2.2.1, hidx.2.2.2.2.1, hidx.2.2.2.2.2.1,
-      hidx.2.2.2.2.2.2.1, hidx.2.2.2.2.2.2.2.1, hidx.2.2.2.2.2.2.2.2.1,
-      hidx.2.2.2.2.2.2.2.2.2.1, hidx.2.2.2.2.2.2.2.2.2.2.2⟩
-    hdist hcw hpw hvw hdw hrw hrv hprefix hsatFrame hwbudget hbudget hstoreLoop
-  change ProgramBoundedIn B σ
-      ((decodeClauseEvalWithLengthProgramAt cursorReg polReg varReg doneReg remainingReg satReg
-        bitReg valReg wBaseReg lengthReg boundReg).seq (andIntoProg satReg cnfReg))
-  simp only [ProgramBoundedIn]
-  exact ⟨hclause, programBoundedIn_andIntoProg B satReg cnfReg _ hidx.2.2.2.2.2.1
-    hidx.2.2.2.2.2.2.2.2.2.2.1⟩
 
 end NPComplete.CookLevin

@@ -15,15 +15,17 @@ as an explicit obligation `hbnd`, because the verifier's resource lemmas live do
 of that module and are stated over `StoreValuesLe` — a hypothesis no `LayoutFact` can
 supply (a fact reads only its footprint, while `StoreValuesLe` constrains every address).
 
-This module closes the gap from the other side: a value-bounds resource chain that needs
+This module closes the gap from the other side: a value-bounds resource proof that needs
 no store hypothesis at all.  `ProgramBoundedIn` never constrains the value of a cell it
 reads (only `regInd` addresses and arithmetic operands), and every register whose value
 enters an operand is either pinned by the entry facts or written by the program before it
-is read, so the store hypothesis of the downstream lemmas is dead weight.  The
-`..._of_value_bounds` lemmas below restate those lemmas without it (same proof shapes),
-and the `..._stage_of_bounds` contracts then discharge the resource component inside the
-contract from role-level budgets alone.  A caller supplies numeric budgets over the fact
-values and never reasons about the program's internals.
+is read, so the store hypothesis of the downstream lemmas is dead weight.  Each resource
+statement is proved once against a role assignment (the core, which still accepts
+placements where some registers coincide), the layout version supplies separation and
+index bounds wholesale from a `RegLayout`, and the `..._stage_of_bounds` contracts then
+discharge the resource component inside the contract from role-level budgets alone.  A
+caller supplies numeric budgets over the fact values and never reasons about the
+program's internals.
 -/
 
 @[expose] public section
@@ -139,13 +141,11 @@ decrements it and every other write target is distinct. -/
 
 The proof body of the clause step's resource bound is stated once against a role assignment
 `reg`, taking only the pairs of distinct roles its proof reads (`clauseStepPairs`) and the
-index bounds of the roles it names (`clauseStepUsed`).  The numbered statement below is a
-wrapper that assembles that evidence from its own hypotheses, and the layout version
-assembles it wholesale from the layout; placements where some registers coincide (allowed by
-the numbered statement's partial pairs) go through the numbered wrapper only. -/
+index bounds of the roles it names (`clauseStepUsed`).  The layout version assembles that
+evidence wholesale from the layout; placements where some registers coincide (which a
+layout cannot express) go through the core directly. -/
 
-/-- The register pairs the clause-step resource proof separates, in the order of the numbered
-statement's distinctness hypotheses. -/
+/-- The register pairs the clause-step resource proof separates. -/
 def clauseStepPairs : List (CNFEvalRole × CNFEvalRole) :=
   [(.cursor, .pol), (.cursor, .var), (.cursor, .done), (.var, .done), (.bound, .cursor),
     (.bound, .pol), (.bound, .var), (.bound, .done), (.bound, .remaining), (.cursor, .length),
@@ -368,68 +368,6 @@ pairs it separates and the index bounds of the roles it names. -/
   simp only [ProgramBoundedIn]
   exact ⟨hclause, programBoundedIn_andIntoProg B (reg .sat) (reg .cnf) _ hsi hki⟩
 
-/-- `programBoundedIn_decodeCNFEvalClauseStepAt_of_store_bounds` without `StoreValuesLe`:
-the per-iteration store hypothesis of the inner literal loop becomes a per-iteration
-remaining bound, derived from the length-prefix postcondition. -/
-@[stage_impl] lemma programBoundedIn_decodeCNFEvalClauseStepAt_of_value_bounds
-    (B cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg
-      lengthReg cnfReg boundReg : ℕ) (σ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
-      lengthReg ≤ B ∧ cnfReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg ∧ boundReg ≠ remainingReg)
-    (hcl : cursorReg ≠ lengthReg) (hld : lengthReg ≠ doneReg) (hrc : remainingReg ≠ cursorReg)
-    (hrv : remainingReg ≠ varReg) (hbl : boundReg ≠ lengthReg)
-    (hrp : remainingReg ≠ polReg) (hrd : remainingReg ≠ doneReg)
-    (hrbit : remainingReg ≠ bitReg) (hrval : remainingReg ≠ valReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hlw : lengthReg ≠ wBaseReg)
-    (hcbit : cursorReg ≠ bitReg) (hcval : cursorReg ≠ valReg)
-    (hbb : boundReg ≠ bitReg) (hbval : boundReg ≠ valReg)
-    (hbitw : bitReg ≠ wBaseReg) (hvw2 : valReg ≠ wBaseReg)
-    (hsatFrame : satReg ≠ cursorReg ∧ satReg ≠ doneReg ∧ satReg ≠ remainingReg ∧
-      satReg ≠ lengthReg ∧ satReg ≠ boundReg ∧ satReg ≠ wBaseReg)
-    (hbudget : σ cursorReg + 1 + σ boundReg ≤ B)
-    (hwbudget : σ wBaseReg + σ boundReg ≤ B)
-    (hinner : σ cursorReg + 2 + 2 * σ boundReg + σ boundReg * (σ boundReg + 1) ≤ B) :
-    ProgramBoundedIn B σ
-      (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-        valReg wBaseReg lengthReg cnfReg boundReg) := by
-  rcases hidx with ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
-  rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-  rcases hsatFrame with ⟨hsc, hsd, hsr, hsl, hsb, hsw⟩
-  set reg : CNFEvalRole → ℕ := (fun
-    | .cursor => cursorReg
-    | .pol => polReg
-    | .var => varReg
-    | .done => doneReg
-    | .remaining => remainingReg
-    | .sat => satReg
-    | .bit => bitReg
-    | .val => valReg
-    | .wBase => wBaseReg
-    | .length => lengthReg
-    | .cnf => cnfReg
-    | .bound => boundReg
-    | _ => 0)
-  refine programBoundedIn_decodeCNFEvalClauseStepAt_core B reg σ ?_ ?_ ?_
-  · intro a b h
-    simp only [clauseStepPairs, List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | nomatch hm
-  · intro r hr
-    simp only [clauseStepUsed, Set.mem_insert_iff, Set.mem_singleton_iff] at hr
-    rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals assumption
-  · exact ⟨hbudget, hwbudget, hinner⟩
-
 /-- Layout version of the clause-step resource core: separation and index bounds come
 wholesale from the layout. -/
 @[stage_impl] lemma programBoundedIn_decodeCNFEvalClauseStepAt_layout
@@ -438,15 +376,6 @@ wholesale from the layout. -/
     ProgramBoundedIn B σ (decodeCNFEvalClauseStepAtL R.reg) :=
   programBoundedIn_decodeCNFEvalClauseStepAt_core B R.reg σ
     (R.separates clauseStepPairs clauseStepPairs_ne) (R.regsLe clauseStepUsed hRB) hb
-
-/-- The old clause-step statement allows `bitReg = valReg`: every distinctness hypothesis
-holds at the placement `1 2 3 4 5 6 12 12 7 8 9 10`, and the numbered wrapper still
-applies there. -/
-@[stage_impl] lemma programBoundedIn_decodeCNFEvalClauseStepAt_coinciding_example :
-    ProgramBoundedIn 100 (fun _ => 0)
-      (decodeCNFEvalClauseStepAt 1 2 3 4 5 6 12 12 7 8 9 10) := by
-  apply programBoundedIn_decodeCNFEvalClauseStepAt_of_value_bounds
-  all_goals decide
 
 /-! ## The clause loop's necessary-separation core
 
@@ -528,80 +457,6 @@ pairs it separates and the index bounds of the roles it names. -/
     · rw [hbdτ]; omega
     · rw [hwτ, hbdτ]; exact hwbudget
     · rw [hbdτ]; omega
-/-- Resource of the outer clause loop from the loop-entry value bounds: with the count
-register at most `BND`, the cursor at most `CUR`, and `bound`/`wBase` pinned to `BND`/`WB`,
-every visit of the clause step fits the entry budgets.  The per-visit skeleton (bounded-count
-`forN` under an invariant) is `programBoundedIn_forN_of_invariant`; this lemma supplies the
-loop's frames/growth and the clause-step budgets. -/
-@[stage_impl] lemma programBoundedIn_decodeCNFEvalClauseLoop_of_value_bounds
-    (B cursorReg polReg varReg doneReg outerReg remainingReg satReg bitReg valReg wBaseReg
-      lengthReg cnfReg boundReg CUR WB BND : ℕ) (ρ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ outerReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
-      lengthReg ≤ B ∧ cnfReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg ∧ boundReg ≠ remainingReg)
-    (hcl : cursorReg ≠ lengthReg) (hld : lengthReg ≠ doneReg) (hrc : remainingReg ≠ cursorReg)
-    (hcbit : cursorReg ≠ bitReg) (hcval : cursorReg ≠ valReg) (hcsat : cursorReg ≠ satReg)
-    (hbl : boundReg ≠ lengthReg) (hbb : boundReg ≠ bitReg) (hbval : boundReg ≠ valReg)
-    (hbs : boundReg ≠ satReg) (hbk : boundReg ≠ cnfReg) (hck : cursorReg ≠ cnfReg)
-    (hrs : remainingReg ≠ satReg) (hsd : satReg ≠ doneReg) (hsl : satReg ≠ lengthReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hbw : bitReg ≠ wBaseReg)
-    (hvalw : valReg ≠ wBaseReg) (hsw : satReg ≠ wBaseReg) (hlw : lengthReg ≠ wBaseReg)
-    (hkw : cnfReg ≠ wBaseReg) (hrv : remainingReg ≠ varReg)
-    (hrp : remainingReg ≠ polReg) (hrd : remainingReg ≠ doneReg)
-    (hrbit : remainingReg ≠ bitReg) (hrval : remainingReg ≠ valReg)
-    (hcount : ρ outerReg ≤ BND) (hcur : ρ cursorReg ≤ CUR) (hwb : ρ wBaseReg = WB)
-    (hbd : ρ boundReg = BND)
-    (hwbudget : WB + BND ≤ B)
-    (houterCoarse : CUR + BND * (1 + BND + BND * (BND + 1)) + 2 + 2 * BND +
-        BND * (BND + 1) ≤ B) :
-    ProgramBoundedIn B ρ
-      (Program.forN (.reg outerReg)
-        (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-          valReg wBaseReg lengthReg cnfReg boundReg)) := by
-  rcases hidx with ⟨hci, hpi, hvi, hdi, hoi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
-  rcases hdist with ⟨hcp, hcv, hcdN, hvd, hbc, hbp, hbv, hbdN, hbr⟩
-  set reg : CNFEvalRole → ℕ := (fun
-    | .cursor => cursorReg
-    | .pol => polReg
-    | .var => varReg
-    | .done => doneReg
-    | .outer => outerReg
-    | .remaining => remainingReg
-    | .sat => satReg
-    | .bit => bitReg
-    | .val => valReg
-    | .wBase => wBaseReg
-    | .length => lengthReg
-    | .cnf => cnfReg
-    | .bound => boundReg
-    | _ => 0)
-  have hstep : Separates reg clauseStepPairs := by
-    intro a b h
-    simp only [clauseStepPairs, List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | (exact Ne.symm (by assumption)) | nomatch hm
-  have hextra : Separates reg [(.bound, .cnf), (.cursor, .cnf), (.cnf, .wBase)] := by
-    intro a b h
-    simp only [List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | nomatch hm
-  refine programBoundedIn_decodeCNFEvalClauseLoop_core B reg CUR WB BND ρ
-    (Separates.append hstep hextra) ?_ hcount hcur hwb hbd ⟨hwbudget, houterCoarse⟩
-  · intro r hr
-    simp only [clauseLoopUsed, clauseStepUsed, Set.mem_insert_iff, Set.mem_singleton_iff] at hr
-    rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals assumption
-
-
 /-- Layout version of the clause-loop resource core: separation and index bounds come
 wholesale from the layout. -/
 @[stage_impl] lemma programBoundedIn_decodeCNFEvalClauseLoop_layout
@@ -786,89 +641,6 @@ the pairs it separates and the index bounds of the roles it names. -/
         (RegsLe.mono clauseLoopUsed_subset_progUsed hidx)
         (by omega) hcurρ hwρ hbdρ ⟨hwbudget, houterCoarse⟩
   exact StageSpec.seq s1 (StageSpec.seq s2 (StageSpec.seq s3 s4))
-/-- Resource-carrying stage for the evaluator's clause-count prefix and outer loop: the
-prefix stages carry the local bounds as facts, and the loop's per-visit resource proof is
-the clause-step bounds read off the loop invariant. -/
-@[stage_impl] lemma decodeCNFEvalProgramAt_resource_stage
-    (B cursorReg polReg varReg doneReg outerReg remainingReg satReg bitReg valReg wBaseReg
-      lengthReg cnfReg boundReg : ℕ) (σ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ outerReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
-      lengthReg ≤ B ∧ cnfReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg ∧ boundReg ≠ remainingReg)
-    (hcl : cursorReg ≠ lengthReg) (hld : lengthReg ≠ doneReg) (hrc : remainingReg ≠ cursorReg)
-    (hcbit : cursorReg ≠ bitReg) (hcval : cursorReg ≠ valReg) (hcsat : cursorReg ≠ satReg)
-    (hbl : boundReg ≠ lengthReg) (hbb : boundReg ≠ bitReg) (hbval : boundReg ≠ valReg)
-    (hbs : boundReg ≠ satReg) (hbk : boundReg ≠ cnfReg) (hck : cursorReg ≠ cnfReg)
-    (hrs : remainingReg ≠ satReg) (hsd : satReg ≠ doneReg) (hsl : satReg ≠ lengthReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hbw : bitReg ≠ wBaseReg)
-    (hvalw : valReg ≠ wBaseReg) (hsw : satReg ≠ wBaseReg) (hlw : lengthReg ≠ wBaseReg)
-    (hkw : cnfReg ≠ wBaseReg) (hrv : remainingReg ≠ varReg)
-    (hco : cursorReg ≠ outerReg) (hdo : doneReg ≠ outerReg) (hoBnd : outerReg ≠ boundReg)
-    (how : outerReg ≠ wBaseReg)
-    (hrp : remainingReg ≠ polReg) (hrd : remainingReg ≠ doneReg)
-    (hrbit : remainingReg ≠ bitReg) (hrval : remainingReg ≠ valReg)
-    (hwbudget : σ wBaseReg + σ boundReg ≤ B)
-    (houterCoarse : σ cursorReg + σ boundReg +
-        σ boundReg * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) +
-        2 + 2 * σ boundReg + σ boundReg * (σ boundReg + 1) ≤ B) :
-    StageSpec B (decodeCNFEvalResBounds B cursorReg wBaseReg boundReg σ)
-      (decodeCNFEvalProgramAt cursorReg polReg varReg doneReg outerReg remainingReg satReg
-        bitReg valReg wBaseReg lengthReg cnfReg boundReg)
-      (({doneReg} : Set ℕ) ∪ ({outerReg} ∪
-        ((fun r => r = cursorReg ∨ r = outerReg ∨ r = doneReg) ∪
-          (fun r => r = cursorReg ∨ r = polReg ∨ r = varReg ∨ r = doneReg ∨ r = remainingReg ∨
-            r = satReg ∨ r = bitReg ∨ r = valReg ∨ r = lengthReg ∨ r = cnfReg))))
-      (fun _ => True) := by
-  rcases hidx with ⟨hci, hpi, hvi, hdi, hoi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
-  rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-  set reg : CNFEvalRole → ℕ := (fun
-    | .cursor => cursorReg
-    | .pol => polReg
-    | .var => varReg
-    | .done => doneReg
-    | .outer => outerReg
-    | .remaining => remainingReg
-    | .sat => satReg
-    | .bit => bitReg
-    | .val => valReg
-    | .wBase => wBaseReg
-    | .length => lengthReg
-    | .cnf => cnfReg
-    | .bound => boundReg
-    | _ => 0)
-  have hstep : Separates reg clauseStepPairs := by
-    intro a b h
-    simp only [clauseStepPairs, List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | (exact Ne.symm (by assumption)) | nomatch hm
-  have hextra : Separates reg [(.bound, .cnf), (.cursor, .cnf), (.cnf, .wBase)] := by
-    intro a b h
-    simp only [List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | nomatch hm
-  have houter : Separates reg
-      [(.cursor, .outer), (.done, .outer), (.outer, .bound), (.outer, .wBase)] := by
-    intro a b h
-    simp only [List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | nomatch hm
-  refine decodeCNFEvalProgramAt_resource_stage_core B reg σ
-    (Separates.append (Separates.append hstep hextra) houter) ?_ ⟨hwbudget, houterCoarse⟩
-  · intro r hr
-    simp only [progUsed, clauseLoopUsed, clauseStepUsed, Set.mem_insert_iff,
-      Set.mem_singleton_iff] at hr
-    rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals assumption
-
 /-- Layout version of the resource composition core: separation and index bounds come
 wholesale from the layout. -/
 @[stage_impl] lemma decodeCNFEvalProgramAt_resource_stage_layout
@@ -904,86 +676,6 @@ component read off at the entry store. -/
           subst h
           omega,
       rfl, rfl, rfl⟩).2.2
-
-/-- `programBoundedIn_decodeCNFEvalProgramAt_of_store_bounds` without `StoreValuesLe`: at
-any store whose cursor/`wBase`/`bound` values fit the coarse budget, the evaluator's
-operands stay within `B`.  This is the resource component of the composed stage
-`decodeCNFEvalProgramAt_resource_stage` read off at the entry store. -/
-@[stage_impl] lemma programBoundedIn_decodeCNFEvalProgramAt_of_value_bounds
-    (B cursorReg polReg varReg doneReg outerReg remainingReg satReg bitReg valReg wBaseReg
-      lengthReg cnfReg boundReg : ℕ) (σ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ outerReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
-      lengthReg ≤ B ∧ cnfReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg ∧ boundReg ≠ remainingReg)
-    (hcl : cursorReg ≠ lengthReg) (hld : lengthReg ≠ doneReg) (hrc : remainingReg ≠ cursorReg)
-    (hcbit : cursorReg ≠ bitReg) (hcval : cursorReg ≠ valReg) (hcsat : cursorReg ≠ satReg)
-    (hbl : boundReg ≠ lengthReg) (hbb : boundReg ≠ bitReg) (hbval : boundReg ≠ valReg)
-    (hbs : boundReg ≠ satReg) (hbk : boundReg ≠ cnfReg) (hck : cursorReg ≠ cnfReg)
-    (hrs : remainingReg ≠ satReg) (hsd : satReg ≠ doneReg) (hsl : satReg ≠ lengthReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hbw : bitReg ≠ wBaseReg)
-    (hvalw : valReg ≠ wBaseReg) (hsw : satReg ≠ wBaseReg) (hlw : lengthReg ≠ wBaseReg)
-    (hkw : cnfReg ≠ wBaseReg) (hrv : remainingReg ≠ varReg)
-    (hco : cursorReg ≠ outerReg) (hdo : doneReg ≠ outerReg) (hoBnd : outerReg ≠ boundReg)
-    (how : outerReg ≠ wBaseReg)
-    (hrp : remainingReg ≠ polReg) (hrd : remainingReg ≠ doneReg)
-    (hrbit : remainingReg ≠ bitReg) (hrval : remainingReg ≠ valReg)
-    (hwbudget : σ wBaseReg + σ boundReg ≤ B)
-    (houterCoarse : σ cursorReg + σ boundReg +
-        σ boundReg * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) +
-        2 + 2 * σ boundReg + σ boundReg * (σ boundReg + 1) ≤ B) :
-    ProgramBoundedIn B σ
-      (decodeCNFEvalProgramAt cursorReg polReg varReg doneReg outerReg remainingReg satReg
-        bitReg valReg wBaseReg lengthReg cnfReg boundReg) := by
-  rcases hidx with ⟨hci, hpi, hvi, hdi, hoi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
-  rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-  set reg : CNFEvalRole → ℕ := (fun
-    | .cursor => cursorReg
-    | .pol => polReg
-    | .var => varReg
-    | .done => doneReg
-    | .outer => outerReg
-    | .remaining => remainingReg
-    | .sat => satReg
-    | .bit => bitReg
-    | .val => valReg
-    | .wBase => wBaseReg
-    | .length => lengthReg
-    | .cnf => cnfReg
-    | .bound => boundReg
-    | _ => 0)
-  have hstep : Separates reg clauseStepPairs := by
-    intro a b h
-    simp only [clauseStepPairs, List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | (exact Ne.symm (by assumption)) | nomatch hm
-  have hextra : Separates reg [(.bound, .cnf), (.cursor, .cnf), (.cnf, .wBase)] := by
-    intro a b h
-    simp only [List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | nomatch hm
-  have houter : Separates reg
-      [(.cursor, .outer), (.done, .outer), (.outer, .bound), (.outer, .wBase)] := by
-    intro a b h
-    simp only [List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | nomatch hm
-  exact programBoundedIn_decodeCNFEvalProgramAt_core B reg σ
-    (Separates.append (Separates.append hstep hextra) houter)
-    (fun r hr => by
-      simp only [progUsed, clauseLoopUsed, clauseStepUsed, Set.mem_insert_iff,
-        Set.mem_singleton_iff] at hr
-      rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-      all_goals assumption)
-    ⟨hwbudget, houterCoarse⟩
 
 /-- Layout version of the program's resource core: separation and index bounds come
 wholesale from the layout. -/

@@ -42,17 +42,47 @@ stage_default boundary
 /-! ## The ThreeCNF evaluator's necessary-separation core
 
 The same shape as `CNFEvalStages.lean`: one proof body per lemma against a role assignment,
-the numbered statement a wrapper that assembles the evidence from its own hypotheses, and a
-layout version that supplies it wholesale. -/
+and a layout version that supplies separation and index bounds wholesale. -/
 
-/-- The register roles the ThreeCNF evaluator's stages name. -/
-inductive ThreeCNFEvalRole where
-  | cursor | pol | var | done | outer | remaining | sat | bit | val | wBase | cnf | bound
-  | numVarsSkip
-  deriving DecidableEq
 
-/-- The register pairs the ThreeCNF clause step's resource proof separates, in the order of
-the numbered statement's distinctness hypotheses. -/
+/-- The placement used by the standard instantiation. -/
+@[stage_layout] def threeStdReg : ThreeCNFEvalRole → Fin 17
+  | .bound => ⟨0, by decide⟩
+  | .cursor => ⟨1, by decide⟩
+  | .wBase => ⟨5, by decide⟩
+  | .pol => ⟨6, by decide⟩
+  | .var => ⟨7, by decide⟩
+  | .outer => ⟨8, by decide⟩
+  | .done => ⟨9, by decide⟩
+  | .remaining => ⟨10, by decide⟩
+  | .sat => ⟨11, by decide⟩
+  | .bit => ⟨12, by decide⟩
+  | .val => ⟨13, by decide⟩
+  | .cnf => ⟨15, by decide⟩
+  | .numVarsSkip => ⟨16, by decide⟩
+
+@[stage_layout] lemma threeStdReg_injective : Function.Injective threeStdReg :=
+  RegLayout.pairwise_ne_injective ThreeCNFEvalRole.mem_list (by decide)
+
+@[stage_layout] def threeStdLayout : RegLayout ThreeCNFEvalRole :=
+  ⟨17, ⟨threeStdReg, threeStdReg_injective⟩⟩
+
+@[stage_layout] lemma threeStdLayout_top : threeStdLayout.top = 17 := rfl
+@[stage_layout] lemma threeStdLayout_reg_bound : threeStdLayout.reg .bound = 0 := rfl
+@[stage_layout] lemma threeStdLayout_reg_cursor : threeStdLayout.reg .cursor = 1 := rfl
+@[stage_layout] lemma threeStdLayout_reg_wBase : threeStdLayout.reg .wBase = 5 := rfl
+@[stage_layout] lemma threeStdLayout_reg_pol : threeStdLayout.reg .pol = 6 := rfl
+@[stage_layout] lemma threeStdLayout_reg_var : threeStdLayout.reg .var = 7 := rfl
+@[stage_layout] lemma threeStdLayout_reg_outer : threeStdLayout.reg .outer = 8 := rfl
+@[stage_layout] lemma threeStdLayout_reg_done : threeStdLayout.reg .done = 9 := rfl
+@[stage_layout] lemma threeStdLayout_reg_remaining : threeStdLayout.reg .remaining = 10 := rfl
+@[stage_layout] lemma threeStdLayout_reg_sat : threeStdLayout.reg .sat = 11 := rfl
+@[stage_layout] lemma threeStdLayout_reg_bit : threeStdLayout.reg .bit = 12 := rfl
+@[stage_layout] lemma threeStdLayout_reg_val : threeStdLayout.reg .val = 13 := rfl
+@[stage_layout] lemma threeStdLayout_reg_cnf : threeStdLayout.reg .cnf = 15 := rfl
+@[stage_layout] lemma threeStdLayout_reg_numVarsSkip : threeStdLayout.reg .numVarsSkip = 16 := rfl
+
+/-- The register pairs the ThreeCNF clause step's resource proof separates. -/
 def threeStepPairs : List (ThreeCNFEvalRole × ThreeCNFEvalRole) :=
   [(.cursor, .pol), (.cursor, .var), (.cursor, .done), (.var, .done), (.bound, .cursor),
     (.bound, .pol), (.bound, .var), (.bound, .done), (.remaining, .cursor), (.cursor, .bit),
@@ -205,64 +235,6 @@ lemma threeStepPairs_ne (a b : ThreeCNFEvalRole) (h : (a, b) ∈ threeStepPairs)
         (reg .val) (reg .wBase) (reg .bound)).seq (andIntoProg (reg .sat) (reg .cnf)))
   simp only [ProgramBoundedIn]
   exact ⟨hstep, programBoundedIn_andIntoProg B (reg .sat) (reg .cnf) _ hsi hki⟩
-/-- `ProgramBoundedIn` for `decodeThreeCNFEvalClauseStepAt` from value budgets: the two seeds
-(`remaining := 3`, `sat := 0`) and the constant-count literal loop of one clause step, with the
-per-visit obligations of the literal loop from the local leaf. -/
-@[stage_impl] lemma programBoundedIn_decodeThreeCNFEvalClauseStepAt_of_value_bounds
-    (B cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg cnfReg
-      boundReg : ℕ) (σ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
-      cnfReg ≤ B ∧ boundReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg)
-    (hrc : remainingReg ≠ cursorReg) (hcbit : cursorReg ≠ bitReg) (hcval : cursorReg ≠ valReg)
-    (hbr : boundReg ≠ remainingReg) (hbb : boundReg ≠ bitReg) (hbval : boundReg ≠ valReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hbw : bitReg ≠ wBaseReg)
-    (hvalw : valReg ≠ wBaseReg) (hrv : remainingReg ≠ varReg)
-    (hrp : remainingReg ≠ polReg) (hrd : remainingReg ≠ doneReg)
-    (hrbit : remainingReg ≠ bitReg) (hrval : remainingReg ≠ valReg)
-    (hsatFrame : satReg ≠ cursorReg ∧ satReg ≠ doneReg ∧ satReg ≠ remainingReg ∧
-      satReg ≠ boundReg ∧ satReg ≠ wBaseReg)
-    (h3 : (3:ℕ) ≤ B)
-    (hwbudget : σ wBaseReg + σ boundReg ≤ B)
-    (hinner : σ cursorReg + 3 * (σ boundReg + 1) + 1 + σ boundReg ≤ B) :
-    ProgramBoundedIn B σ
-      (decodeThreeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg
-        bitReg valReg wBaseReg cnfReg boundReg) := by
-  rcases hidx with ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hki, hbi⟩
-  rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd⟩
-  rcases hsatFrame with ⟨hsc, hsd, hsr, hsb, hsw⟩
-  set reg : ThreeCNFEvalRole → ℕ := (fun
-    | .cursor => cursorReg
-    | .pol => polReg
-    | .var => varReg
-    | .done => doneReg
-    | .remaining => remainingReg
-    | .sat => satReg
-    | .bit => bitReg
-    | .val => valReg
-    | .wBase => wBaseReg
-    | .cnf => cnfReg
-    | .bound => boundReg
-    | _ => 0)
-  refine programBoundedIn_decodeThreeCNFEvalClauseStepAt_core B reg σ ?_ ?_ ?_
-  · intro a b h
-    simp only [threeStepPairs, List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | nomatch hm
-  · intro r hr
-    simp only [threeStepUsed, Set.mem_insert_iff, Set.mem_singleton_iff] at hr
-    rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals assumption
-  · exact ⟨h3, hwbudget, hinner⟩
-
 /-- Layout version of the ThreeCNF clause-step resource core: separation and index bounds
 come wholesale from the layout. -/
 @[stage_impl] lemma programBoundedIn_decodeThreeCNFEvalClauseStepAt_layout
@@ -500,89 +472,6 @@ lemma threeProgPairs_ne (a b : ThreeCNFEvalRole) (h : (a, b) ∈ threeProgPairs)
         ⟨h3, by rw [hwτ, hbdτ]; exact hwbudget, by rw [hbdτ]; omega⟩
   exact StageSpec.seq s1 (StageSpec.seq s2 (StageSpec.seq s3
     (StageSpec.seq s4 (StageSpec.seq s5 (StageSpec.seq s6 s7)))))
-/-- Resource-carrying stage for the ThreeCNF evaluator's prefix (the `numVars` header skip and
-the clause-count decode) and outer clause loop: the prefix seeds and decoders carry the local
-value bounds as facts via `StageSpec.assign_const_carry`/`StageSpec.decodeUnaryAt`, and the
-loop is a `StageSpec.forN_le` whose per-visit budgets come from the loop invariant. -/
-@[stage_impl] lemma decodeThreeCNFEvalProgramAt_resource_stage
-    (B cursorReg polReg varReg doneReg outerReg remainingReg satReg bitReg valReg wBaseReg
-      cnfReg boundReg numVarsSkipReg : ℕ) (σ : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ outerReg ≤ B ∧
-      remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
-      cnfReg ≤ B ∧ boundReg ≤ B ∧ numVarsSkipReg ≤ B)
-    (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
-      varReg ≠ doneReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧
-      boundReg ≠ varReg ∧ boundReg ≠ doneReg ∧ boundReg ≠ remainingReg)
-    (hcl : cursorReg ≠ numVarsSkipReg) (hld : numVarsSkipReg ≠ doneReg)
-    (hco : cursorReg ≠ outerReg) (hdo : doneReg ≠ outerReg) (how : outerReg ≠ wBaseReg)
-    (hbo : boundReg ≠ outerReg) (hno : numVarsSkipReg ≠ outerReg)
-    (hbl : boundReg ≠ numVarsSkipReg) (hnw : numVarsSkipReg ≠ wBaseReg)
-    (hck : cursorReg ≠ cnfReg) (hbk : boundReg ≠ cnfReg)
-    (hrc : remainingReg ≠ cursorReg) (hcbit : cursorReg ≠ bitReg) (hcval : cursorReg ≠ valReg)
-    (hcsat : cursorReg ≠ satReg) (hbb : boundReg ≠ bitReg)
-    (hbval : boundReg ≠ valReg) (hbs : boundReg ≠ satReg)
-    (hrs : remainingReg ≠ satReg) (hsd : satReg ≠ doneReg)
-    (hcw : cursorReg ≠ wBaseReg) (hpw : polReg ≠ wBaseReg) (hvw : varReg ≠ wBaseReg)
-    (hdw : doneReg ≠ wBaseReg) (hrw : remainingReg ≠ wBaseReg) (hbw : bitReg ≠ wBaseReg)
-    (hvalw : valReg ≠ wBaseReg) (hsw : satReg ≠ wBaseReg)
-    (hkw : cnfReg ≠ wBaseReg)
-    (hrp : remainingReg ≠ polReg) (hrd : remainingReg ≠ doneReg)
-    (hrbit : remainingReg ≠ bitReg) (hrval : remainingReg ≠ valReg)
-    (hrv : remainingReg ≠ varReg)
-    (hwbudget : σ wBaseReg + σ boundReg ≤ B) (h3 : (3:ℕ) ≤ B)
-    (houterCoarse : σ cursorReg + 2 * σ boundReg +
-        σ boundReg * (3 * (σ boundReg + 1)) + 3 * (σ boundReg + 1) + 1 + σ boundReg ≤ B) :
-    StageSpec B (decodeThreeCNFEvalResBounds B cursorReg wBaseReg boundReg σ)
-      (decodeThreeCNFEvalProgramAt cursorReg polReg varReg doneReg outerReg remainingReg satReg
-        bitReg valReg wBaseReg cnfReg boundReg numVarsSkipReg)
-      (({doneReg} : Set ℕ) ∪ ({numVarsSkipReg} ∪
-        ((fun r => r = cursorReg ∨ r = numVarsSkipReg ∨ r = doneReg) ∪
-          (({doneReg} : Set ℕ) ∪ ({outerReg} ∪
-            ((fun r => r = cursorReg ∨ r = outerReg ∨ r = doneReg) ∪
-              (fun r => r = cursorReg ∨ r = polReg ∨ r = varReg ∨ r = doneReg ∨ r = remainingReg ∨
-                r = satReg ∨ r = bitReg ∨ r = valReg ∨ r = cnfReg)))))))
-      (fun _ => True) := by
-  rcases hidx with ⟨hci, hpi, hvi, hdi, hoi, hri, hsi, hbiti, hvali, hwi, hki, hbi, hnvi⟩
-  rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-  set reg : ThreeCNFEvalRole → ℕ := (fun
-    | .cursor => cursorReg
-    | .pol => polReg
-    | .var => varReg
-    | .done => doneReg
-    | .outer => outerReg
-    | .remaining => remainingReg
-    | .sat => satReg
-    | .bit => bitReg
-    | .val => valReg
-    | .wBase => wBaseReg
-    | .cnf => cnfReg
-    | .bound => boundReg
-    | .numVarsSkip => numVarsSkipReg)
-  have hstep : Separates reg threeStepPairs := by
-    intro a b h
-    simp only [threeStepPairs, List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | (exact Ne.symm (by assumption)) | nomatch hm
-  have hextra : Separates reg
-      [(.cursor, .numVarsSkip), (.numVarsSkip, .done), (.cursor, .outer), (.done, .outer),
-        (.outer, .wBase), (.bound, .outer), (.numVarsSkip, .outer), (.bound, .numVarsSkip),
-        (.numVarsSkip, .wBase), (.cursor, .cnf), (.bound, .cnf), (.cnf, .wBase)] := by
-    intro a b h
-    simp only [List.mem_cons, Prod.mk.injEq] at h
-    rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
-      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hm
-    all_goals first | assumption | nomatch hm
-  refine decodeThreeCNFEvalProgramAt_resource_stage_core B reg σ
-    (Separates.append hstep hextra) ?_ ⟨hwbudget, h3, houterCoarse⟩
-  · intro r hr
-    simp only [threeProgUsed, threeStepUsed, Set.mem_insert_iff, Set.mem_singleton_iff] at hr
-    rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals assumption
-
 /-- Layout version of the ThreeCNF resource composition core: separation and index bounds
 come wholesale from the layout. -/
 @[stage_impl] lemma decodeThreeCNFEvalProgramAt_resource_stage_layout

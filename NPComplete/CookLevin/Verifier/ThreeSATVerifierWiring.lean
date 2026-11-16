@@ -2,6 +2,7 @@ module
 
 public import NPComplete.CookLevin.Verifier.SATVerifierWiring
 public import NPComplete.CookLevin.Verifier.ThreeCNFEvalProgramBounded
+public import NPComplete.CookLevin.Verifier.ThreeCNFEvalStages
 public import NPComplete.SAT.ThreeSAT
 public import NPComplete.RAMToTM.Generic.Api.ProgramCostBounds
 
@@ -150,28 +151,10 @@ lemma threeSatVerifierProg_correct (f : ValidThreeCNF) (w : List Bool) :
     omega
   have hnumvarsskipW : 16 < τ 5 := by have := hSpec.bases.1; omega
   have hWA : τ 5 < τ 1 := hSpec.bases.2
-  have hfinal := decodeThreeCNFEvalProgramAt_eval 1 6 7 9 8 10 11 12 13 5 15 0 16
-    (τ 1) (τ 5) L f.1 ([] : Bits) σ3
-    (hcp := by omega) (hcv := by omega) (hcd := by omega) (hpv := by omega) (hpd := by omega)
-    (hvd := by omega) (hrc := by omega) (hrp := by omega) (hrv := by omega) (hrd := by omega)
-    (hbc := by omega) (hbp := by omega) (hbr := by omega)
-    (hvc := by omega) (hvr := by omega)
-    (hwc := by omega) (hwp := by omega) (hwv := by omega) (hwd := by omega)
-    (hwr := by omega) (hwb := by omega) (hwl := by omega)
-    (hsc := by omega) (hsp := by omega) (hsv := by omega) (hsd := by omega) (hsr := by omega)
-    (hsb := by omega) (hsl := by omega) (hsw := by omega)
-    (hkc := by omega) (hkp := by omega) (hkv := by omega) (hkd := by omega) (hkr := by omega)
-    (hks := by omega) (hkb := by omega) (hkval := by omega) (hkw := by omega)
-    (hbboc := by omega) (hbbop := by omega) (hbbov := by omega) (hbbod := by omega)
-    (hbbor := by omega) (hbbos := by omega) (hbbob := by omega) (hbboval := by omega)
-    (hbbok := by omega) (hbboo := by omega) (hbbon := by omega)
-    (houtc := by omega) (houtd := by omega) (houtk := by omega) (houtw := by omega)
-    (hnc := by omega) (hnd := by omega) (hnk := by omega) (hnw := by omega)
-    (hbelowW := ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega⟩)
-    (hcnfregW := by omega) (houterW := by omega)
-    (hnumvarsskipW := hnumvarsskipW)
-    (hbelow := ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
-      by omega, by omega, by omega, by omega, by omega⟩)
+  have hfinal := decodeThreeCNFEvalProgramAt_eval threeStdLayout (τ 1) (τ 5) L f.1
+    ([] : Bits) σ3
+    (haddr := by rw [threeStdLayout_top]; have := hnumvarsskipW; omega)
+    (hwtop := by rw [threeStdLayout_top]; have := hnumvarsskipW; omega)
     (hWA := hWA)
     (hwbase := hσ35) (hcnf0 := hσ315) (hb := hσ30) (hboundNV := hboundNV)
     (hboundCC := hboundCC) (hvarbound := hvarbound) (hc := hσ31)
@@ -185,8 +168,16 @@ lemma threeSatVerifierProg_correct (f : ValidThreeCNF) (w : List Bool) :
           (by have := encodeThreeCNF_numVars_succ_le f.1; omega))
       · exact hσ3wbits c.l3.var (lt_of_lt_of_le (f.2 c hc c.l3 (by simp [ThreeClause.literals]))
           (by have := encodeThreeCNF_numVars_succ_le f.1; omega)))
+  have hfinalLit :
+      (decodeThreeCNFEvalProgramAt 1 6 7 9 8 10 11 12 13 5 15 0 16).eval σ3 15 =
+        (if threeCnfSatBool w f.1 then 1 else 0) := by
+    simpa only [threeStdLayout_reg_cursor, threeStdLayout_reg_pol, threeStdLayout_reg_var,
+      threeStdLayout_reg_done, threeStdLayout_reg_outer, threeStdLayout_reg_remaining,
+      threeStdLayout_reg_sat, threeStdLayout_reg_bit, threeStdLayout_reg_val,
+      threeStdLayout_reg_wBase, threeStdLayout_reg_cnf, threeStdLayout_reg_bound,
+      threeStdLayout_reg_numVarsSkip] using hfinal
   show threeSatVerifierProg.eval (bitInputStore (pairBits (encodeThreeCNF f.1) w)) 15 = _
-  rw [threeSatVerifierProg, eval_seq, eval_seq, hfinal]
+  rw [threeSatVerifierProg, eval_seq, eval_seq, hfinalLit]
 
 /-! ## `ProgramBoundedIn`
 
@@ -279,20 +270,27 @@ lemma threeSatVerifierProg_bounded_in_phase2 (f : ValidThreeCNF) (w : List Bool)
     have haddr' : τ 1 ≤ 5 * L + 101 := by simpa [pairPreludeBound] using haddr
     nlinarith [haddr', sq_nonneg L, sq_nonneg (L * L)]
   have hp4 : ProgramBoundedIn B σ3
-      (decodeThreeCNFEvalProgramAt 1 6 7 9 8 10 11 12 13 5 15 0 16) :=
-    programBoundedIn_decodeThreeCNFEvalProgramAt_of_store_bounds B 1 6 7 9 8 10 11 12 13 5 15 0 16
-      σ3 hσ3_le
-      ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
-        by omega, by omega, by omega, by omega⟩
-      ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega⟩
-      (hrc := by omega) (hcbit := by omega) (hcval := by omega) (hcsat := by omega)
-      (hbb := by omega) (hbval := by omega) (hbs := by omega) (hbk := by omega)
-      (hck := by omega) (hrs := by omega) (hsd := by omega)
-      (hcw := by omega) (hpw := by omega) (hvw := by omega) (hdw := by omega) (hrw := by omega)
-      (hbw := by omega) (hvalw := by omega) (hsw := by omega) (hkw := by omega) (hrv := by omega)
-      (hco := by omega) (hdo := by omega) (hoBnd := by omega) (how := by omega)
-      (hnc := by omega) (hnd := by omega) (hnBnd := by omega) (hnw := by omega)
-      (hB1 := hB1) (hwbudget := hσ3wbudget) (houterCoarse := hσ3houter)
+      (decodeThreeCNFEvalProgramAt 1 6 7 9 8 10 11 12 13 5 15 0 16) := by
+    have hRB : threeStdLayout.top ≤ B + 1 := by
+      rw [threeStdLayout_top, hBdef]
+      nlinarith [pow_pos (show 0 < L + 1 by omega) 4]
+    have hB3 : (3:ℕ) ≤ B := by
+      rw [hBdef]
+      nlinarith [pow_pos (show 0 < L + 1 by omega) 4]
+    have hbudget : threeProgramBudgets B (σ3 (threeStdLayout.reg .cursor))
+        (σ3 (threeStdLayout.reg .wBase)) (σ3 (threeStdLayout.reg .bound)) := by
+      show threeProgramBudgets B (σ3 1) (σ3 5) (σ3 0)
+      exact ⟨hσ3wbudget, hB3, by have := hσ3houter; omega⟩
+    have hfacts : decodeThreeCNFEvalResBounds B (threeStdLayout.reg .cursor)
+        (threeStdLayout.reg .wBase) (threeStdLayout.reg .bound) σ3 σ3 :=
+      ⟨valuesLeOn_of_storeValuesLe hσ3_le, rfl, rfl, rfl⟩
+    have hstage := decodeThreeCNFEvalProgramAt_resource_stage_layout threeStdLayout B σ3 hRB
+      hbudget
+    simpa only [threeStdLayout_reg_cursor, threeStdLayout_reg_pol, threeStdLayout_reg_var,
+      threeStdLayout_reg_done, threeStdLayout_reg_outer, threeStdLayout_reg_remaining,
+      threeStdLayout_reg_sat, threeStdLayout_reg_bit, threeStdLayout_reg_val,
+      threeStdLayout_reg_wBase, threeStdLayout_reg_cnf, threeStdLayout_reg_bound,
+      threeStdLayout_reg_numVarsSkip] using (hstage σ3 hfacts).2.2
   exact ⟨hp1, hp3, hp4⟩
 
 /-- `threeSatVerifierProg` stays within the coarse polynomial access budget. -/

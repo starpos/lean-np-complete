@@ -212,50 +212,95 @@ def decodeCNFEvalProgramAt
     and CNF registers have separate bounds there. This keeps those control registers
     outside the witness-bit area during clause-count decoding and clause iteration. -/
 @[stage_contract] lemma decodeCNFEvalProgramAt_eval
-    (cursorReg polReg varReg doneReg outerReg remainingReg satReg bitReg valReg wBaseReg
-      lengthReg cnfReg boundReg addr wBase bound : ℕ) (cs : List Clause) (rest : Bits)
+    (R : RegLayout CNFEvalRole) (addr wBase bound : ℕ) (cs : List Clause) (rest : Bits)
     (σ : Store)
-    (hcp : cursorReg ≠ polReg) (hcv : cursorReg ≠ varReg) (hcd : cursorReg ≠ doneReg)
-    (hpv : polReg ≠ varReg) (hpd : polReg ≠ doneReg) (hvd : varReg ≠ doneReg)
-    (hrc : remainingReg ≠ cursorReg) (hrp : remainingReg ≠ polReg)
-    (hrv : remainingReg ≠ varReg) (hrd : remainingReg ≠ doneReg)
-    (hbc : bitReg ≠ cursorReg) (hbp : bitReg ≠ polReg) (hbr : bitReg ≠ remainingReg)
-    (hvc : valReg ≠ cursorReg) (hvr : valReg ≠ remainingReg)
-    (hwc : wBaseReg ≠ cursorReg) (hwp : wBaseReg ≠ polReg) (hwv : wBaseReg ≠ varReg)
-    (hwd : wBaseReg ≠ doneReg) (hwr : wBaseReg ≠ remainingReg) (hwb : wBaseReg ≠ bitReg)
-    (hwl : wBaseReg ≠ valReg) (hwlen : wBaseReg ≠ lengthReg)
-    (hsc : satReg ≠ cursorReg) (hsp : satReg ≠ polReg) (hsv : satReg ≠ varReg)
-    (hsd : satReg ≠ doneReg) (hsr : satReg ≠ remainingReg) (hsb : satReg ≠ bitReg)
-    (hsl : satReg ≠ valReg) (hsw : satReg ≠ wBaseReg)
-    (hlc : lengthReg ≠ cursorReg) (hld : lengthReg ≠ doneReg)
-    (hkc : cnfReg ≠ cursorReg) (hkp : cnfReg ≠ polReg) (hkv : cnfReg ≠ varReg)
-    (hkd : cnfReg ≠ doneReg) (hkr : cnfReg ≠ remainingReg) (hks : cnfReg ≠ satReg)
-    (hkb : cnfReg ≠ bitReg) (hkval : cnfReg ≠ valReg) (hkw : cnfReg ≠ wBaseReg)
-    (hkl : cnfReg ≠ lengthReg)
-    (hbboc : boundReg ≠ cursorReg) (hbbop : boundReg ≠ polReg) (hbbov : boundReg ≠ varReg)
-    (hbbod : boundReg ≠ doneReg) (hbbor : boundReg ≠ remainingReg) (hbbos : boundReg ≠ satReg)
-    (hbbob : boundReg ≠ bitReg) (hbboval : boundReg ≠ valReg) (hbbol : boundReg ≠ lengthReg)
-    (hbbok : boundReg ≠ cnfReg) (hbboo : boundReg ≠ outerReg)
-    (houtc : outerReg ≠ cursorReg) (houtd : outerReg ≠ doneReg)
-    (houtk : outerReg ≠ cnfReg) (houtw : outerReg ≠ wBaseReg)
-    (hbelowW : cursorReg < wBase ∧ polReg < wBase ∧ varReg < wBase ∧ doneReg < wBase ∧
-      remainingReg < wBase ∧ satReg < wBase ∧ bitReg < wBase ∧ valReg < wBase)
-    (hlenW : lengthReg < wBase) (hcnfregW : cnfReg < wBase)
-    (houterW : outerReg < wBase)
-    (hbelow : cursorReg < addr ∧ polReg < addr ∧ varReg < addr ∧ doneReg < addr ∧
-      remainingReg < addr ∧ satReg < addr ∧ bitReg < addr ∧ valReg < addr ∧ wBaseReg < addr ∧
-      lengthReg < addr ∧ cnfReg < addr ∧ boundReg < addr ∧ outerReg < addr)
-    (hWA : wBase < addr)
-    (hwbase : σ wBaseReg = wBase) (hcnf0 : σ cnfReg = 1) (hb : σ boundReg = bound)
+    (haddr : R.top ≤ addr) (hwtop : R.top ≤ wBase) (hWA : wBase < addr)
+    (hwbase : σ (R.reg .wBase) = wBase) (hcnf0 : σ (R.reg .cnf) = 1)
+    (hb : σ (R.reg .bound) = bound)
     (hbound : cs.length + 1 ≤ bound) (hbound2 : ∀ c ∈ cs, c.lits.length + 1 ≤ bound)
     (hvarbound : ∀ c ∈ cs, ∀ l ∈ c.lits, l.var + 1 ≤ bound)
-    (hc : σ cursorReg = addr)
+    (hc : σ (R.reg .cursor) = addr)
     (hbits : BitsFrom σ addr (encodeList encodeClause cs ++ rest))
     (w : List Bool)
     (hwbits : ∀ c ∈ cs, ∀ l ∈ c.lits, σ (wBase + l.var) = if w.getD l.var false then 1 else 0) :
-    (decodeCNFEvalProgramAt cursorReg polReg varReg doneReg outerReg remainingReg satReg bitReg
-      valReg wBaseReg lengthReg cnfReg boundReg).eval σ cnfReg =
+    (decodeCNFEvalProgramAt (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
+        (R.reg .outer) (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val)
+        (R.reg .wBase) (R.reg .length) (R.reg .cnf) (R.reg .bound)).eval σ (R.reg .cnf) =
       (if ∀ c ∈ cs, clauseSatBool w c = true then 1 else 0) := by
+  set cursorReg := R.reg .cursor
+  set polReg := R.reg .pol
+  set varReg := R.reg .var
+  set doneReg := R.reg .done
+  set outerReg := R.reg .outer
+  set remainingReg := R.reg .remaining
+  set satReg := R.reg .sat
+  set bitReg := R.reg .bit
+  set valReg := R.reg .val
+  set wBaseReg := R.reg .wBase
+  set lengthReg := R.reg .length
+  set cnfReg := R.reg .cnf
+  set boundReg := R.reg .bound
+  have hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
+    polReg ≠ varReg ∧ polReg ≠ doneReg ∧ varReg ≠ doneReg ∧ remainingReg ≠ cursorReg ∧
+    remainingReg ≠ polReg ∧ remainingReg ≠ varReg ∧ remainingReg ≠ doneReg ∧
+    bitReg ≠ cursorReg ∧ bitReg ≠ polReg ∧ bitReg ≠ remainingReg ∧ valReg ≠ cursorReg ∧
+    valReg ≠ remainingReg ∧ wBaseReg ≠ cursorReg ∧ wBaseReg ≠ polReg ∧ wBaseReg ≠ varReg ∧
+    wBaseReg ≠ doneReg ∧ wBaseReg ≠ remainingReg ∧ wBaseReg ≠ bitReg ∧ wBaseReg ≠ valReg ∧
+    wBaseReg ≠ lengthReg ∧ satReg ≠ cursorReg ∧ satReg ≠ polReg ∧ satReg ≠ varReg ∧
+    satReg ≠ doneReg ∧ satReg ≠ remainingReg ∧ satReg ≠ bitReg ∧ satReg ≠ valReg ∧
+    satReg ≠ wBaseReg ∧ lengthReg ≠ cursorReg ∧ lengthReg ≠ doneReg ∧ cnfReg ≠ cursorReg ∧
+    cnfReg ≠ polReg ∧ cnfReg ≠ varReg ∧ cnfReg ≠ doneReg ∧ cnfReg ≠ remainingReg ∧
+    cnfReg ≠ satReg ∧ cnfReg ≠ bitReg ∧ cnfReg ≠ valReg ∧ cnfReg ≠ wBaseReg ∧
+    cnfReg ≠ lengthReg ∧ boundReg ≠ cursorReg ∧ boundReg ≠ polReg ∧ boundReg ≠ varReg ∧
+    boundReg ≠ doneReg ∧ boundReg ≠ remainingReg ∧ boundReg ≠ satReg ∧ boundReg ≠ bitReg ∧
+    boundReg ≠ valReg ∧ boundReg ≠ lengthReg ∧ boundReg ≠ cnfReg ∧ boundReg ≠ outerReg ∧
+    outerReg ≠ cursorReg ∧ outerReg ≠ doneReg ∧ outerReg ≠ cnfReg ∧ outerReg ≠ wBaseReg
+    :=
+    ⟨R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide)⟩
+  obtain ⟨hcp, hcv, hcd, hpv, hpd, hvd, hrc, hrp, hrv, hrd, hbc, hbp, hbr, hvc, hvr,
+    hwc, hwp, hwv, hwd, hwr, hwb, hwl, hwlen, hsc, hsp, hsv, hsd, hsr, hsb, hsl, hsw,
+    hlc, hld, hkc, hkp, hkv, hkd, hkr, hks, hkb, hkval, hkw, hkl, hbboc, hbbop, hbbov,
+    hbbod, hbbor, hbbos, hbbob, hbboval, hbbol, hbbok, hbboo, houtc, houtd, houtk, houtw⟩ := hdist
+  have hbelowW : cursorReg < wBase ∧ polReg < wBase ∧ varReg < wBase ∧ doneReg < wBase ∧
+    remainingReg < wBase ∧ satReg < wBase ∧ bitReg < wBase ∧ valReg < wBase
+    :=
+    ⟨R.reg_lt_of_top_le .cursor hwtop, R.reg_lt_of_top_le .pol hwtop,
+      R.reg_lt_of_top_le .var hwtop, R.reg_lt_of_top_le .done hwtop,
+      R.reg_lt_of_top_le .remaining hwtop, R.reg_lt_of_top_le .sat hwtop,
+      R.reg_lt_of_top_le .bit hwtop, R.reg_lt_of_top_le .val hwtop⟩
+  have hlenW : lengthReg < wBase := R.reg_lt_of_top_le .length hwtop
+  have hcnfregW : cnfReg < wBase := R.reg_lt_of_top_le .cnf hwtop
+  have houterW : outerReg < wBase := R.reg_lt_of_top_le .outer hwtop
+  have hbelow : cursorReg < addr ∧ polReg < addr ∧ varReg < addr ∧ doneReg < addr ∧
+    remainingReg < addr ∧ satReg < addr ∧ bitReg < addr ∧ valReg < addr ∧ wBaseReg < addr ∧
+    lengthReg < addr ∧ cnfReg < addr ∧ boundReg < addr ∧ outerReg < addr
+    :=
+    ⟨R.reg_lt_of_top_le .cursor haddr, R.reg_lt_of_top_le .pol haddr,
+      R.reg_lt_of_top_le .var haddr, R.reg_lt_of_top_le .done haddr,
+      R.reg_lt_of_top_le .remaining haddr, R.reg_lt_of_top_le .sat haddr,
+      R.reg_lt_of_top_le .bit haddr, R.reg_lt_of_top_le .val haddr,
+      R.reg_lt_of_top_le .wBase haddr, R.reg_lt_of_top_le .length haddr,
+      R.reg_lt_of_top_le .cnf haddr, R.reg_lt_of_top_le .bound haddr,
+      R.reg_lt_of_top_le .outer haddr⟩
   change ((Program.assign doneReg (.const 0)).seq
       ((Program.assign outerReg (.const 0)).seq
         ((decodeNatProgramAt cursorReg outerReg doneReg boundReg).seq
@@ -317,22 +362,10 @@ def decodeCNFEvalProgramAt
   rw [decodeCNFEvalClauseStepAt_loopEval_eq cursorReg polReg varReg doneReg remainingReg satReg
     bitReg valReg wBaseReg lengthReg cnfReg boundReg bound cs.length σ2 hσ2bound
     hbboc hbbop hbbov hbbod hbbol hbbor hbbos hbbob hbboval hbbok]
-  have hbelow' : cursorReg < addr + cs.length + 1 ∧ polReg < addr + cs.length + 1 ∧
-      varReg < addr + cs.length + 1 ∧ doneReg < addr + cs.length + 1 ∧
-      remainingReg < addr + cs.length + 1 ∧ satReg < addr + cs.length + 1 ∧
-      bitReg < addr + cs.length + 1 ∧ valReg < addr + cs.length + 1 ∧
-      wBaseReg < addr + cs.length + 1 ∧ lengthReg < addr + cs.length + 1 ∧
-      cnfReg < addr + cs.length + 1 :=
-    ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
-      by omega, by omega, by omega⟩
   have hWA' : wBase < addr + cs.length + 1 := by omega
-  have hloop := decode_cnf_eval_clause_loop_eval cursorReg polReg varReg doneReg remainingReg satReg
-      bitReg valReg wBaseReg lengthReg cnfReg bound (addr + cs.length + 1) 1 wBase cs rest σ2
-      hcp hcv hcd hpv hpd hvd hrc hrp hrv hrd hbc hbp hbr hvc hvr
-      hwc hwp hwv hwd hwr hwb hwl hwlen hsc hsp hsv hsd hsr hsb hsl hsw
-      hlc hld hkc hkp hkv hkd hkr hks hkb hkval hkw hkl
-      hbelowW hlenW hcnfregW hbelow'
-      hWA' hσ2wbase hσ2sat0 (Or.inr rfl) hbound2 hvarbound hσ2cur hbits2 w hwbits2
+  have haddr' : R.top ≤ addr + cs.length + 1 := by omega
+  have hloop := decode_cnf_eval_clause_loop_eval R bound (addr + cs.length + 1) 1 wBase cs rest σ2
+      haddr' hwtop hWA' hσ2wbase hσ2sat0 (Or.inr rfl) hbound2 hvarbound hσ2cur hbits2 w hwbits2
   simpa using hloop.2
 
 /-! ## Stage contracts
@@ -418,37 +451,9 @@ one clause forward. -/
     (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
     (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))]
   obtain ⟨σ2, hσ2, hcur2, hwb2, hcnf2, hbits2, hwbits2⟩ :=
-    decode_cnf_eval_clause_loop_eval_step (R.reg .cursor) (R.reg .pol) (R.reg .var)
-      (R.reg .done) (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-      (R.reg .length) (R.reg .cnf) bound addr v wBase c cs
-      ((cs.map encodeClause).flatten ++ rest) σ
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide))
-      ⟨R.reg_lt_of_top_le .cursor hb, R.reg_lt_of_top_le .pol hb,
-        R.reg_lt_of_top_le .var hb, R.reg_lt_of_top_le .done hb,
-        R.reg_lt_of_top_le .remaining hb, R.reg_lt_of_top_le .sat hb,
-        R.reg_lt_of_top_le .bit hb, R.reg_lt_of_top_le .val hb⟩
-      (R.reg_lt_of_top_le .length hb) (R.reg_lt_of_top_le .cnf hb)
-      ⟨R.reg_lt_of_top_le .cursor haddr, R.reg_lt_of_top_le .pol haddr,
-        R.reg_lt_of_top_le .var haddr, R.reg_lt_of_top_le .done haddr,
-        R.reg_lt_of_top_le .remaining haddr, R.reg_lt_of_top_le .sat haddr,
-        R.reg_lt_of_top_le .bit haddr, R.reg_lt_of_top_le .val haddr,
-        R.reg_lt_of_top_le .wBase haddr, R.reg_lt_of_top_le .length haddr,
-        R.reg_lt_of_top_le .cnf haddr⟩
-      hWA hwb hcnf hbound_c hvarbound_c hcur
+    decode_cnf_eval_clause_loop_eval_step R bound addr v wBase c cs
+      ((cs.map encodeClause).flatten ++ rest) σ haddr hb hWA hwb hcnf
+      hbound_c hvarbound_c hcur
       (show BitsFrom σ addr (encodeClause c ++ ((cs.map encodeClause).flatten ++ rest)) from by
         rw [← List.append_assoc]; exact hbits) w
       (hwit c (by simp)) (fun cc hcc => hwit cc (by simp [hcc]))
@@ -510,36 +515,8 @@ satisfaction value into the accumulator and leaves the input tail at `rest`. -/
       (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
       (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
       (R.reg_ne (by decide))
-  have hloop := decode_cnf_eval_clause_loop_eval_full (R.reg .cursor) (R.reg .pol) (R.reg .var)
-      (R.reg .done) (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-      (R.reg .length) (R.reg .cnf) bound addr v wBase cs rest σ
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide))
-      ⟨R.reg_lt_of_top_le .cursor hb, R.reg_lt_of_top_le .pol hb,
-        R.reg_lt_of_top_le .var hb, R.reg_lt_of_top_le .done hb,
-        R.reg_lt_of_top_le .remaining hb, R.reg_lt_of_top_le .sat hb,
-        R.reg_lt_of_top_le .bit hb, R.reg_lt_of_top_le .val hb⟩
-      (R.reg_lt_of_top_le .length hb) (R.reg_lt_of_top_le .cnf hb)
-      ⟨R.reg_lt_of_top_le .cursor haddr, R.reg_lt_of_top_le .pol haddr,
-        R.reg_lt_of_top_le .var haddr, R.reg_lt_of_top_le .done haddr,
-        R.reg_lt_of_top_le .remaining haddr, R.reg_lt_of_top_le .sat haddr,
-        R.reg_lt_of_top_le .bit haddr, R.reg_lt_of_top_le .val haddr,
-        R.reg_lt_of_top_le .wBase haddr, R.reg_lt_of_top_le .length haddr,
-        R.reg_lt_of_top_le .cnf haddr⟩
-      hWA hwb hcnf hs0 hbound hvarbound hcur hbits w hwit
+  have hloop := decode_cnf_eval_clause_loop_eval_full R bound addr v wBase cs rest σ
+      haddr hb hWA hwb hcnf hs0 hbound hvarbound hcur hbits w hwit
   obtain ⟨hcur2, hcnf2, hwb2, hbits2⟩ := hloop
   have houterAt : (loopEval (decodeCNFEvalClauseStepAtL R.reg) cs.length σ) (R.reg .outer) =
       σ (R.reg .outer) :=
@@ -599,43 +576,8 @@ clause into the accumulator, which holds the CNF's Boolean value at the end. -/
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
       exact ne_reg_of_not_mem_denote hr (by decide)
   · obtain ⟨hcur, hcnf, hwb, hbd, hbits, hwit⟩ := hσ
-    have h := decodeCNFEvalProgramAt_eval (R.reg .cursor) (R.reg .pol) (R.reg .var)
-      (R.reg .done) (R.reg .outer) (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val)
-      (R.reg .wBase) (R.reg .length) (R.reg .cnf) (R.reg .bound) addr wBase bound cs rest σ
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
-      (R.reg_ne (by decide))
-      ⟨R.reg_lt_of_top_le .cursor hb, R.reg_lt_of_top_le .pol hb,
-        R.reg_lt_of_top_le .var hb, R.reg_lt_of_top_le .done hb,
-        R.reg_lt_of_top_le .remaining hb, R.reg_lt_of_top_le .sat hb,
-        R.reg_lt_of_top_le .bit hb, R.reg_lt_of_top_le .val hb⟩
-      (R.reg_lt_of_top_le .length hb) (R.reg_lt_of_top_le .cnf hb)
-      (R.reg_lt_of_top_le .outer hb)
-      ⟨R.reg_lt_of_top_le .cursor haddr, R.reg_lt_of_top_le .pol haddr,
-        R.reg_lt_of_top_le .var haddr, R.reg_lt_of_top_le .done haddr,
-        R.reg_lt_of_top_le .remaining haddr, R.reg_lt_of_top_le .sat haddr,
-        R.reg_lt_of_top_le .bit haddr, R.reg_lt_of_top_le .val haddr,
-        R.reg_lt_of_top_le .wBase haddr, R.reg_lt_of_top_le .length haddr,
-        R.reg_lt_of_top_le .cnf haddr, R.reg_lt_of_top_le .bound haddr,
-        R.reg_lt_of_top_le .outer haddr⟩
-      hWA hwb hcnf hbd hbound hbound2 hvarbound hcur hbits w hwit
+    have h := decodeCNFEvalProgramAt_eval R addr wBase bound cs rest σ
+      haddr hb hWA hwb hcnf hbd hbound hbound2 hvarbound hcur hbits w hwit
     exact h
 
 end NPComplete.CookLevin
