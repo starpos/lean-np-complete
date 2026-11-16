@@ -3,6 +3,7 @@ module
 public import NPComplete
 public import NPComplete.Test.Witnesses
 meta import NPComplete.Meta.ApiLayerCheck
+meta import NPComplete.Meta.StageDisciplineCheck
 
 /-!
 # Layering check of the tagged API

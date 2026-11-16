@@ -110,7 +110,9 @@ lemma decodeCNFEvalClauseStepAt_one_cursor_le
     (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg
       wBaseReg lengthReg cnfReg boundReg).eval σ cursorReg ≤
       σ cursorReg + 1 + σ boundReg + σ boundReg * (σ boundReg + 1) := by
-  unfold decodeCNFEvalClauseStepAt
+  change ((decodeClauseEvalWithLengthProgramAt cursorReg polReg varReg doneReg remainingReg
+      satReg bitReg valReg wBaseReg lengthReg boundReg).seq
+      (andIntoProg satReg cnfReg)).eval σ cursorReg ≤ _
   rw [eval_seq]
   unfold decodeClauseEvalWithLengthProgramAt
   rw [eval_seq, eval_seq]

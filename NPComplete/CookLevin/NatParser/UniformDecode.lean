@@ -1,10 +1,12 @@
 module
 
 meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDiscipline
 public import NPComplete.CookLevin.NatParser
 public import NPComplete.RAMToTM.Generic.BitDecode
 public import NPComplete.RAMToTM.Generic.Relocate
 public import NPComplete.BoundedWhile.Frame
+public import NPComplete.BoundedWhile.RegLayout
 
 /-!
 # Input-independent CNF decoder
@@ -30,8 +32,14 @@ open NPComplete.SAT (Literal encodeLiteral)
 
 /-! ## Unary / literal scanners with a bound register -/
 
-def decodeNatProgramAt (cursorReg countReg doneReg boundReg : ℕ) : Program :=
+@[stage_raw_ctor] def decodeNatProgramAt (cursorReg countReg doneReg boundReg : ℕ) : Program :=
   decodeUnaryProgAt cursorReg countReg doneReg (.reg boundReg)
+
+/-- Layout wrapper of `decodeNatProgramAt`: the registers come as roles of a role-indexed
+assignment, so a stage program never names a register number. -/
+@[construction_api, stage_boundary] def decodeNatProgramAtL {Role : Type} (reg : Role → ℕ)
+    (cursor count done bound : Role) : Program :=
+  decodeNatProgramAt (reg cursor) (reg count) (reg done) (reg bound)
 
 lemma decodeNatProgramAt_eq
     (cursorReg countReg doneReg boundReg bound : ℕ) (σ : Store)

@@ -1,8 +1,11 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDiscipline
 public import NPComplete.CookLevin.Verifier.ClauseEvalAt
 public import NPComplete.CookLevin.Verifier.ClauseLengthEval
 public import NPComplete.BoundedWhile.Frame
+public import NPComplete.BoundedWhile.RegLayout
 
 /-!
 `decodeClauseEvalWithLengthProgram`'s length-prefix decode and per-literal scan both
@@ -41,7 +44,7 @@ lemma decodeClauseEvalStepAt_loopEval_bound_frame
     ⟨hbc, hbp, hbv, hbd, hbr, hbb, hbval, hbs⟩ k σ
 
 /-- Register-driven-bound counterpart of `decodeClauseEvalWithLengthProgram`. -/
-def decodeClauseEvalWithLengthProgramAt
+@[stage_raw_ctor] def decodeClauseEvalWithLengthProgramAt
     (cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg
       lengthReg boundReg : ℕ) : Program :=
   .seq (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg)
@@ -49,6 +52,14 @@ def decodeClauseEvalWithLengthProgramAt
       (.forN (.reg remainingReg)
         (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
           valReg wBaseReg boundReg))
+
+/-- Layout wrapper of `decodeClauseEvalWithLengthProgramAt`: the registers come as roles of a
+role-indexed assignment, so a stage program never names a register number. -/
+@[construction_api, stage_boundary] def decodeClauseEvalWithLengthProgramAtL {Role : Type}
+    (reg : Role → ℕ) (cursor pol var done remaining sat bit val wBase length bound : Role) :
+    Program :=
+  decodeClauseEvalWithLengthProgramAt (reg cursor) (reg pol) (reg var) (reg done) (reg remaining)
+    (reg sat) (reg bit) (reg val) (reg wBase) (reg length) (reg bound)
 
 /-- `decodeClauseEvalWithLengthProgramAt` agrees with `decodeClauseEvalWithLengthProgram`
     whenever `boundReg` holds the constant bound. -/

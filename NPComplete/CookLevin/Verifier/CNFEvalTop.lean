@@ -150,7 +150,13 @@ lemma programBoundedIn_decodeCNFEvalProgramAt_of_store_bounds
         valReg wBaseReg lengthReg cnfReg boundReg) := by
   rcases hidx with ⟨hci, hpi, hvi, hdi, hoi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
   rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-  unfold decodeCNFEvalProgramAt
+  change ProgramBoundedIn B σ
+      ((Program.assign doneReg (.const 0)).seq
+        ((Program.assign outerReg (.const 0)).seq
+          ((decodeNatProgramAt cursorReg outerReg doneReg boundReg).seq
+            (Program.forN (.reg outerReg)
+              (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg
+                bitReg valReg wBaseReg lengthReg cnfReg boundReg)))))
   simp only [ProgramBoundedIn, ExprBoundedIn]
   refine ⟨⟨hdi, Nat.zero_le B⟩, ⟨hoi, Nat.zero_le B⟩, ?_, hoi, ?_⟩
   · set σ0 := (Program.assign doneReg (.const 0)).eval σ with hσ0def

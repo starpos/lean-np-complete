@@ -1,6 +1,12 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDiscipline
+meta import NPComplete.Meta.StageDisciplineCheck
 public import NPComplete.CookLevin.Verifier.ClauseLengthEval
+public import NPComplete.BoundedWhile.RegLayout
+public import NPComplete.RAMToTM.Generic.Api.LayoutSpec
+public import NPComplete.RAMToTM.Generic.Api.LayoutStage
 
 /-!
 The CNF-level evaluator folds `clauseSatBool`'s per-clause result across the
@@ -8,6 +14,13 @@ formula with AND, one length-prefixed clause at a time
 (`decodeClauseEvalWithLengthProgram`, `ClauseLengthEval.lean`).  This module
 adds only the AND-accumulator step and its loop correctness; the length-
 prefix/literal-loop machinery is unchanged and fully reused.
+
+This module also owns the register layout of the CNF-evaluator stages: the role
+type, the standard placement and the fact vocabulary the stage contracts state
+their boundaries with.  Programs are written once against a role-indexed register
+assignment (the `...L` definitions); the numbered programs of the literature are
+the same trees at plain numbers, so an implementation change reaches every caller
+through one description.
 -/
 
 @[expose] public section
@@ -17,16 +30,86 @@ namespace NPComplete.CookLevin
 open NPComplete.RAMToTM
 open NPComplete.BoundedWhile
   (Program Store Expr eval_assign eval_seq writeReg writeReg_diff writeReg_same
-    eval_ifNZ eval_forN loopEval loopEval_succ eval_assignInd eval_skip)
+    eval_ifNZ eval_forN loopEval loopEval_succ eval_assignInd eval_skip ReadsOnly)
+open NPComplete.BoundedWhile (RegLayout LayoutFact)
 open NPComplete.BitEncoding (Bits encodeNat_length encodeList encodeNat)
 open NPComplete.SAT (Literal)
+
+stage_default boundary
+
+/-! ## Register layout
+
+The roles name the jobs the registers do; the standard placement matches the
+numbered instantiation of the wiring (`1 6 7 9 8 10 11 12 13 5 14 15 0`), so a
+renumbering edits `stdReg` and the value lemmas below only.  Register 0 holds
+the resource bound, register 5 the certificate base. -/
+
+/-- Register roles of the CNF-evaluator stages. -/
+@[stage_layout] inductive CNFEvalRole where
+  | cursor | pol | var | done | outer | remaining | sat | bit | val | wBase | length | cnf
+  | bound | scratch
+  deriving DecidableEq
+
+namespace CNFEvalRole
+
+@[stage_layout] def list : List CNFEvalRole :=
+  [.cursor, .pol, .var, .done, .outer, .remaining, .sat, .bit, .val, .wBase, .length, .cnf,
+    .bound, .scratch]
+
+@[stage_layout] lemma mem_list (role : CNFEvalRole) : role ∈ list := by cases role <;> simp [list]
+
+end CNFEvalRole
+
+/-- The placement used by the standard instantiation. -/
+@[stage_layout] def stdReg : CNFEvalRole → Fin 16
+  | .bound => ⟨0, by decide⟩
+  | .cursor => ⟨1, by decide⟩
+  | .wBase => ⟨5, by decide⟩
+  | .pol => ⟨6, by decide⟩
+  | .var => ⟨7, by decide⟩
+  | .outer => ⟨8, by decide⟩
+  | .done => ⟨9, by decide⟩
+  | .remaining => ⟨10, by decide⟩
+  | .sat => ⟨11, by decide⟩
+  | .bit => ⟨12, by decide⟩
+  | .val => ⟨13, by decide⟩
+  | .length => ⟨14, by decide⟩
+  | .cnf => ⟨15, by decide⟩
+  | .scratch => ⟨2, by decide⟩
+
+@[stage_layout] lemma stdReg_injective : Function.Injective stdReg :=
+  RegLayout.pairwise_ne_injective CNFEvalRole.mem_list (by decide)
+
+@[stage_layout] def stdLayout : RegLayout CNFEvalRole := ⟨16, ⟨stdReg, stdReg_injective⟩⟩
+
+@[stage_layout] lemma stdLayout_top : stdLayout.top = 16 := rfl
+@[stage_layout] lemma stdLayout_reg_bound : stdLayout.reg .bound = 0 := rfl
+@[stage_layout] lemma stdLayout_reg_cursor : stdLayout.reg .cursor = 1 := rfl
+@[stage_layout] lemma stdLayout_reg_wBase : stdLayout.reg .wBase = 5 := rfl
+@[stage_layout] lemma stdLayout_reg_pol : stdLayout.reg .pol = 6 := rfl
+@[stage_layout] lemma stdLayout_reg_var : stdLayout.reg .var = 7 := rfl
+@[stage_layout] lemma stdLayout_reg_outer : stdLayout.reg .outer = 8 := rfl
+@[stage_layout] lemma stdLayout_reg_done : stdLayout.reg .done = 9 := rfl
+@[stage_layout] lemma stdLayout_reg_remaining : stdLayout.reg .remaining = 10 := rfl
+@[stage_layout] lemma stdLayout_reg_sat : stdLayout.reg .sat = 11 := rfl
+@[stage_layout] lemma stdLayout_reg_bit : stdLayout.reg .bit = 12 := rfl
+@[stage_layout] lemma stdLayout_reg_val : stdLayout.reg .val = 13 := rfl
+@[stage_layout] lemma stdLayout_reg_length : stdLayout.reg .length = 14 := rfl
+@[stage_layout] lemma stdLayout_reg_cnf : stdLayout.reg .cnf = 15 := rfl
+@[stage_layout] lemma stdLayout_reg_scratch : stdLayout.reg .scratch = 2 := rfl
+
+/-! ## The AND-accumulator step -/
 
 /-- AND a clause's fold result into the CNF accumulator: once `cnfReg` is `0`
     it stays `0` (short-circuit); a zero `clauseSatReg` clears it. -/
 def andIntoProg (clauseSatReg cnfReg : ℕ) : Program :=
   .ifNZ (.reg clauseSatReg) .skip (.assign cnfReg (.const 0))
 
-lemma andIntoProg_eval (clauseSatReg cnfReg : ℕ) (σ : Store) :
+/-- Layout form of `andIntoProg` at the accumulator roles. -/
+def andIntoProgL (reg : CNFEvalRole → ℕ) : Program :=
+  andIntoProg (reg .sat) (reg .cnf)
+
+@[stage_impl] lemma andIntoProg_eval (clauseSatReg cnfReg : ℕ) (σ : Store) :
     (andIntoProg clauseSatReg cnfReg).eval σ cnfReg =
       (if σ clauseSatReg = 0 then 0 else σ cnfReg) := by
   unfold andIntoProg
@@ -35,7 +118,7 @@ lemma andIntoProg_eval (clauseSatReg cnfReg : ℕ) (σ : Store) :
   · simp [eval_assign, Expr.eval, writeReg_same, h]
   · simp [eval_skip, h]
 
-lemma andIntoProg_frame (clauseSatReg cnfReg r : ℕ) (σ : Store) (hr : r ≠ cnfReg) :
+@[stage_impl] lemma andIntoProg_frame (clauseSatReg cnfReg r : ℕ) (σ : Store) (hr : r ≠ cnfReg) :
     (andIntoProg clauseSatReg cnfReg).eval σ r = σ r := by
   unfold andIntoProg
   simp only [eval_ifNZ, Expr.eval]
@@ -44,18 +127,37 @@ lemma andIntoProg_frame (clauseSatReg cnfReg r : ℕ) (σ : Store) (hr : r ≠ c
   · simp [eval_skip, h]
 
 /-- Decode one clause (length prefix + literal eval) and AND its Boolean
-    value into the CNF accumulator `cnfReg`. -/
+    value into the CNF accumulator: the one place the clause step's syntax tree
+    is written.  `decodeCNFEvalClauseStep` is the same tree at plain numbers. -/
+def decodeCNFEvalClauseStepL (reg : CNFEvalRole → ℕ) (bound : ℕ) : Program :=
+  .seq (decodeClauseEvalWithLengthProgramL reg .cursor .pol .var .done .remaining .sat .bit .val
+      .wBase .length bound)
+    (andIntoProgL reg)
+
+/-- Numbered form of `decodeCNFEvalClauseStepL` (the same tree at plain numbers). -/
 def decodeCNFEvalClauseStep
     (cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg
       lengthReg cnfReg bound : ℕ) : Program :=
-  .seq (decodeClauseEvalWithLengthProgram cursorReg polReg varReg doneReg remainingReg satReg
-      bitReg valReg wBaseReg lengthReg bound)
-    (andIntoProg satReg cnfReg)
+  decodeCNFEvalClauseStepL
+    (fun
+      | .cursor => cursorReg
+      | .pol => polReg
+      | .var => varReg
+      | .done => doneReg
+      | .remaining => remainingReg
+      | .sat => satReg
+      | .bit => bitReg
+      | .val => valReg
+      | .wBase => wBaseReg
+      | .length => lengthReg
+      | .cnf => cnfReg
+      | _ => 0)
+    bound
 
 /-- One-clause stage of the CNF evaluation loop: the clause evaluator advances the cursor past
 `c`, ANDs its Boolean value into `cnfReg`, and leaves the remaining input and witness cells
 untouched, so the tail satisfies the same invariants. -/
-lemma decode_cnf_eval_clause_loop_eval_step
+@[stage_contract] lemma decode_cnf_eval_clause_loop_eval_step
     (cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg
       bound addr s0 wBase : ℕ) (c : Clause) (cs : List Clause) (rest : Bits) (σ : Store)
     (hcp : cursorReg ≠ polReg) (hcv : cursorReg ≠ varReg) (hcd : cursorReg ≠ doneReg)
@@ -150,17 +252,56 @@ lemma decode_cnf_eval_clause_loop_eval_step
   refine ⟨σ2, ?_, (hfr2 _ hkc.symm).trans hcurE, (hfr2 _ hkw.symm).trans hwbaseE, ?_,
     bitsFrom_of_eq_on (fun i _ => hfr2 _ (by omega)) hbits1,
     fun cc hcc l hl => (hfr2 _ (by omega)).trans (hwbits1 cc hcc l hl)⟩
-  · unfold decodeCNFEvalClauseStep
+  · change σ2 = ((decodeClauseEvalWithLengthProgram cursorReg polReg varReg doneReg remainingReg
+        satReg bitReg valReg wBaseReg lengthReg bound).seq (andIntoProg satReg cnfReg)).eval σ
     rw [eval_seq, ← hσ1, ← hσ2]
   · rw [h2cnf, hsatE, hcnf1]
     cases clauseSatBool w c <;> simp
+
+/-! ## Stage facts
+
+The clause loop's boundaries are named facts: the input bits and the witness cells are
+passive facts that a register-writing stage preserves without any frame work, and the loop
+invariant packages the live register values together with them.  Stage contracts state
+their pre- and postconditions over these facts and never over a raw store. -/
+
+/-- The input bits living at cell `b`: a passive fact, read-only above the layout. -/
+@[stage_boundary] def bitsFromFact {Role : Type} (R : RegLayout Role) (b : ℕ) (bits : Bits)
+    (hb : R.top ≤ b) : LayoutFact R :=
+  ⟨fun σ => BitsFrom σ b bits, ⟨∅, Set.Ico b (b + bits.length), fun _ ha => hb.trans ha.1⟩, by
+    intro σ σ' he h
+    apply bitsFrom_of_eq_on _ h
+    intro i hi
+    refine he (b + i) (RegLayout.Foot.mem_denote.2 (Or.inr ⟨Nat.le_add_right b i, by omega⟩))⟩
+
+/-- The witness cells of the clauses still to be evaluated: a passive fact, read-only above
+the layout. -/
+@[stage_boundary] def witnessFact {Role : Type} (R : RegLayout Role) (wBase : ℕ)
+    (cs : List Clause) (w : List Bool) (hb : R.top ≤ wBase) : LayoutFact R :=
+  ⟨fun σ => ∀ c ∈ cs, ∀ l ∈ c.lits, σ (wBase + l.var) = if w.getD l.var false then 1 else 0,
+    ⟨∅, {x | ∃ c ∈ cs, ∃ l ∈ c.lits, x = wBase + l.var},
+      fun _ ⟨c, hc, l, hl, he⟩ => by rw [he]; exact le_trans hb (Nat.le_add_right wBase l.var)⟩, by
+    intro σ σ' he h c hc l hl
+    refine (he (wBase + l.var) ?_).trans (h c hc l hl)
+    exact RegLayout.Foot.mem_denote.2 (Or.inr ⟨c, hc, l, hl, rfl⟩)⟩
+
+/-- The clause loop's invariant as facts when the remaining input is `tail` at cell `addr`:
+the live register values, the input tail and the witness cells of the remaining clauses. -/
+@[stage_boundary] def clauseInvFact (R : RegLayout CNFEvalRole) (addr v wBase bound : ℕ)
+    (tail : Bits) (cs : List Clause) (w : List Bool) (haddr : R.top ≤ addr)
+    (hb : R.top ≤ wBase) : LayoutFact R :=
+  LayoutFact.bigAnd
+    [LayoutFact.reg .cursor addr, LayoutFact.reg .cnf v, LayoutFact.reg .wBase wBase,
+      LayoutFact.reg .bound bound, bitsFromFact R addr tail haddr, witnessFact R wBase cs w hb]
 
 /-- After one iteration per clause, the cursor has passed the clause-list
     encoding, and the accumulator holds the conjunction of the per-clause
     satisfaction values, seeded by its initial Boolean value. The accumulator
     register is distinct from every other evaluator register and lies below
-    the certificate base. -/
-lemma decode_cnf_eval_clause_loop_eval
+    the certificate base.  This form exposes the full loop invariant (the witness
+    base, the input tail and the witness cells survive the loop); the published
+    `decode_cnf_eval_clause_loop_eval` is its first two components. -/
+@[stage_contract] lemma decode_cnf_eval_clause_loop_eval_full
     (cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg
       bound addr s0 wBase : ℕ) (cs : List Clause) (rest : Bits) (σ : Store)
     (hcp : cursorReg ≠ polReg) (hcv : cursorReg ≠ varReg) (hcd : cursorReg ≠ doneReg)
@@ -198,11 +339,17 @@ lemma decode_cnf_eval_clause_loop_eval
       addr + (cs.map encodeClause).flatten.length ∧
     (loopEval (decodeCNFEvalClauseStep cursorReg polReg varReg doneReg remainingReg satReg bitReg
         valReg wBaseReg lengthReg cnfReg bound) cs.length σ) cnfReg =
-      (if s0 = 1 ∧ ∀ c ∈ cs, clauseSatBool w c = true then 1 else 0) := by
+      (if s0 = 1 ∧ ∀ c ∈ cs, clauseSatBool w c = true then 1 else 0) ∧
+    (loopEval (decodeCNFEvalClauseStep cursorReg polReg varReg doneReg remainingReg satReg bitReg
+        valReg wBaseReg lengthReg cnfReg bound) cs.length σ) wBaseReg = wBase ∧
+    BitsFrom
+      (loopEval (decodeCNFEvalClauseStep cursorReg polReg varReg doneReg remainingReg satReg bitReg
+        valReg wBaseReg lengthReg cnfReg bound) cs.length σ)
+      (addr + (cs.map encodeClause).flatten.length) rest := by
   induction cs generalizing addr s0 σ with
   | nil =>
       simp only [List.map_nil, List.flatten_nil, List.length_nil, Nat.add_zero, loopEval]
-      refine ⟨hc, ?_⟩
+      refine ⟨hc, ?_, hwbase, hbits⟩
       rcases hs0 with h0 | h1
       · simp [hcnf, h0]
       · simp [hcnf, h1]
@@ -235,16 +382,77 @@ lemma decode_cnf_eval_clause_loop_eval
         split_ifs
         · exact hs0
         · exact Or.inl rfl
-      obtain ⟨hcurTail, hcnfTail⟩ := ih (addr + (encodeClause c).length)
+      obtain ⟨hcurTail, hcnfTail, hwbTail, hbitsTail⟩ :=
+        ih (addr + (encodeClause c).length)
         (if clauseSatBool w c then s0 else 0) σ2 hbelow1 (by omega) (hwb2.trans rfl) hcnf2 hs0'
         (fun cc hcc => hbound cc (by simp [hcc]))
         (fun cc hcc => hvarbound cc (by simp [hcc])) hcur2 hbits2 hwbits2
       rw [show (c :: cs).length = cs.length + 1 by simp, loopEval_succ, ← hσ2]
-      refine ⟨?_, ?_⟩
+      refine ⟨?_, ?_, hwbTail, ?_⟩
       · rw [hcurTail]
         simp only [List.map_cons, List.flatten_cons, List.length_append]
         ring
       · rw [hcnfTail]
         cases hcs : clauseSatBool w c <;> simp [hcs]
+      · simp only [List.map_cons, List.flatten_cons, List.length_append]
+        rw [← Nat.add_assoc]
+        exact hbitsTail
+
+/-- After one iteration per clause, the cursor has passed the clause-list
+    encoding, and the accumulator holds the conjunction of the per-clause
+    satisfaction values, seeded by its initial Boolean value. The accumulator
+    register is distinct from every other evaluator register and lies below
+    the certificate base. -/
+@[stage_contract] lemma decode_cnf_eval_clause_loop_eval
+    (cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg
+      bound addr s0 wBase : ℕ) (cs : List Clause) (rest : Bits) (σ : Store)
+    (hcp : cursorReg ≠ polReg) (hcv : cursorReg ≠ varReg) (hcd : cursorReg ≠ doneReg)
+    (hpv : polReg ≠ varReg) (hpd : polReg ≠ doneReg) (hvd : varReg ≠ doneReg)
+    (hrc : remainingReg ≠ cursorReg) (hrp : remainingReg ≠ polReg)
+    (hrv : remainingReg ≠ varReg) (hrd : remainingReg ≠ doneReg)
+    (hbc : bitReg ≠ cursorReg) (hbp : bitReg ≠ polReg)      (hbr : bitReg ≠ remainingReg)
+    (hvc : valReg ≠ cursorReg)      (hvr : valReg ≠ remainingReg)     (hwc : wBaseReg ≠ cursorReg) (hwp : wBaseReg ≠ polReg) (hwv : wBaseReg ≠ varReg)
+    (hwd : wBaseReg ≠ doneReg) (hwr : wBaseReg ≠ remainingReg) (hwb : wBaseReg ≠ bitReg)
+    (hwl : wBaseReg ≠ valReg) (hwlen : wBaseReg ≠ lengthReg)
+    (hsc : satReg ≠ cursorReg) (hsp : satReg ≠ polReg) (hsv : satReg ≠ varReg)
+    (hsd : satReg ≠ doneReg) (hsr : satReg ≠ remainingReg) (hsb : satReg ≠ bitReg)
+    (hsl : satReg ≠ valReg) (hsw : satReg ≠ wBaseReg)
+    (hlc : lengthReg ≠ cursorReg) (hld : lengthReg ≠ doneReg)
+        (hkc : cnfReg ≠ cursorReg) (hkp : cnfReg ≠ polReg) (hkv : cnfReg ≠ varReg)
+    (hkd : cnfReg ≠ doneReg) (hkr : cnfReg ≠ remainingReg) (hks : cnfReg ≠ satReg)
+    (hkb : cnfReg ≠ bitReg) (hkval : cnfReg ≠ valReg) (hkw : cnfReg ≠ wBaseReg)
+    (hkl : cnfReg ≠ lengthReg)
+    (hbelowW : cursorReg < wBase ∧ polReg < wBase ∧ varReg < wBase ∧ doneReg < wBase ∧
+      remainingReg < wBase ∧ satReg < wBase ∧ bitReg < wBase ∧ valReg < wBase)
+    (hlenW : lengthReg < wBase)  (hcnfregW : cnfReg < wBase)
+    (hbelow : cursorReg < addr ∧ polReg < addr ∧ varReg < addr ∧ doneReg < addr ∧
+      remainingReg < addr ∧ satReg < addr ∧ bitReg < addr ∧ valReg < addr ∧ wBaseReg < addr ∧
+      lengthReg < addr ∧ cnfReg < addr)
+    (hWA : wBase < addr)
+    (hwbase : σ wBaseReg = wBase) (hcnf : σ cnfReg = s0) (hs0 : s0 = 0 ∨ s0 = 1)
+    (hbound : ∀ c ∈ cs, c.lits.length + 1 ≤ bound)
+    (hvarbound : ∀ c ∈ cs, ∀ l ∈ c.lits, l.var + 1 ≤ bound)
+    (hc : σ cursorReg = addr)
+    (hbits : BitsFrom σ addr ((cs.map encodeClause).flatten ++ rest))
+    (w : List Bool)
+    (hwbits : ∀ c ∈ cs, ∀ l ∈ c.lits, σ (wBase + l.var) = if w.getD l.var false then 1 else 0) :
+    (loopEval (decodeCNFEvalClauseStep cursorReg polReg varReg doneReg remainingReg satReg bitReg
+        valReg wBaseReg lengthReg cnfReg bound) cs.length σ) cursorReg =
+      addr + (cs.map encodeClause).flatten.length ∧
+    (loopEval (decodeCNFEvalClauseStep cursorReg polReg varReg doneReg remainingReg satReg bitReg
+        valReg wBaseReg lengthReg cnfReg bound) cs.length σ) cnfReg =
+      (if s0 = 1 ∧ ∀ c ∈ cs, clauseSatBool w c = true then 1 else 0) :=
+  ⟨(decode_cnf_eval_clause_loop_eval_full cursorReg polReg varReg doneReg remainingReg satReg
+    bitReg valReg wBaseReg lengthReg cnfReg bound addr s0 wBase cs rest σ
+    hcp hcv hcd hpv hpd hvd hrc hrp hrv hrd hbc hbp hbr hvc hvr hwc hwp hwv hwd hwr hwb hwl
+    hwlen hsc hsp hsv hsd hsr hsb hsl hsw hlc hld hkc hkp hkv hkd hkr hks hkb hkval hkw hkl
+    hbelowW hlenW hcnfregW hbelow hWA hwbase hcnf hs0 hbound hvarbound hc hbits w hwbits).1,
+    (decode_cnf_eval_clause_loop_eval_full cursorReg polReg varReg doneReg remainingReg satReg
+    bitReg valReg wBaseReg lengthReg cnfReg bound addr s0 wBase cs rest σ
+    hcp hcv hcd hpv hpd hvd hrc hrp hrv hrd hbc hbp hbr hvc hvr hwc hwp hwv hwd hwr hwb hwl
+    hwlen hsc hsp hsv hsd hsr hsb hsl hsw hlc hld hkc hkp hkv hkd hkr hks hkb hkval hkw hkl
+    hbelowW hlenW hcnfregW hbelow hWA hwbase hcnf hs0 hbound hvarbound hc hbits w hwbits).2.1⟩
 
 end NPComplete.CookLevin
+
+#check_stage_discipline all

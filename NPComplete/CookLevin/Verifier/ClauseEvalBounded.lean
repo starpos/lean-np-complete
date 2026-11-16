@@ -303,7 +303,9 @@ lemma programBoundedIn_decodeCNFEvalClauseStepAt_of_invariants
       hidx.2.2.2.2.2.2.1, hidx.2.2.2.2.2.2.2.1, hidx.2.2.2.2.2.2.2.2.1,
       hidx.2.2.2.2.2.2.2.2.2.1, hidx.2.2.2.2.2.2.2.2.2.2.2⟩
     hdist hcw hpw hvw hdw hrw hrv hprefix hsatFrame hwbudget hbudget hstoreLoop
-  unfold decodeCNFEvalClauseStepAt
+  change ProgramBoundedIn B σ
+      ((decodeClauseEvalWithLengthProgramAt cursorReg polReg varReg doneReg remainingReg satReg
+        bitReg valReg wBaseReg lengthReg boundReg).seq (andIntoProg satReg cnfReg))
   simp only [ProgramBoundedIn]
   exact ⟨hclause, programBoundedIn_andIntoProg B satReg cnfReg _ hidx.2.2.2.2.2.1
     hidx.2.2.2.2.2.2.2.2.2.2.1⟩

@@ -1,8 +1,11 @@
 module
 
+meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDiscipline
 public import NPComplete.CookLevin.Verifier.ClauseEval
 public import NPComplete.CookLevin.NatParser.LengthPrefix
 public import NPComplete.CookLevin.ToThreeCNF.Encode
+public import NPComplete.BoundedWhile.RegLayout
 
 /-!
 The CNF-level evaluator scans one length-prefixed clause at a time
@@ -122,7 +125,7 @@ lemma decodeClauseWithLengthPrefix_full_eval
     the certificate, folding into `satReg` via `decodeClauseEvalStep`'s OR
     accumulator (seeded fresh at `0` since a clause's own accumulator starts
     unsatisfied). -/
-def decodeClauseEvalWithLengthProgram
+@[stage_raw_ctor] def decodeClauseEvalWithLengthProgram
     (cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg
       lengthReg bound : ℕ) : Program :=
   .seq (decodeClauseWithLengthPrefix cursorReg doneReg remainingReg lengthReg bound)
@@ -130,6 +133,14 @@ def decodeClauseEvalWithLengthProgram
       (.forN (.reg remainingReg)
         (decodeClauseEvalStep cursorReg polReg varReg doneReg remainingReg satReg bitReg
           valReg wBaseReg bound))
+
+/-- Layout wrapper of `decodeClauseEvalWithLengthProgram`: the registers come as roles of a
+role-indexed assignment, so a stage program never names a register number. -/
+@[construction_api, stage_boundary] def decodeClauseEvalWithLengthProgramL {Role : Type}
+    (reg : Role → ℕ) (cursor pol var done remaining sat bit val wBase length : Role) (bound : ℕ) :
+    Program :=
+  decodeClauseEvalWithLengthProgram (reg cursor) (reg pol) (reg var) (reg done) (reg remaining)
+    (reg sat) (reg bit) (reg val) (reg wBase) (reg length) bound
 
 /-- After the length-prefixed clause evaluator runs, the cursor is past the
     clause encoding and the satisfaction register holds its Boolean value. The

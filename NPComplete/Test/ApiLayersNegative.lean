@@ -3,6 +3,7 @@ module
 meta import NPComplete.Meta.ApiLayer
 public import NPComplete
 meta import NPComplete.Meta.ApiLayerCheck
+meta import NPComplete.Meta.StageDisciplineCheck
 public import NPComplete.Test.ApiLayersOutsideUmbrella
 
 /-!
