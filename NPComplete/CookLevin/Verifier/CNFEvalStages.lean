@@ -44,8 +44,9 @@ stage_default boundary
 
 /-! ## The value-bounds resource chain -/
 
-/-- `programBoundedIn_decodeClauseWithLengthPrefixAt_of_bounds` without `StoreValuesLe`:
-the store hypothesis only propagated `StoreValuesLe` that no consumer needs. -/
+/-- The value-bounds name the stage chain uses for the prefix-step resource: forwards to
+`programBoundedIn_decodeClauseWithLengthPrefixAt_of_bounds`, whose budget hypothesis is
+already local to the cells this step reads. -/
 @[stage_impl] lemma programBoundedIn_decodeClauseWithLengthPrefixAt_of_value_bounds
     (B cursorReg doneReg remainingReg lengthReg boundReg : ℕ) (σ : Store)
     (hidx : cursorReg ≤ B ∧ doneReg ≤ B ∧ remainingReg ≤ B ∧ lengthReg ≤ B ∧
@@ -54,39 +55,9 @@ the store hypothesis only propagated `StoreValuesLe` that no consumer needs. -/
       boundReg ≠ cursorReg ∧ boundReg ≠ lengthReg ∧ boundReg ≠ doneReg)
     (hbudget : σ cursorReg + 1 + σ boundReg ≤ B) :
     ProgramBoundedIn B σ
-      (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg) := by
-  rcases hidx with ⟨hcurI, hdoneI, hremI, hlenI, hboundI⟩
-  rcases hdist with ⟨hcd, hcl, hld, hbc, hbl, hbd⟩
-  let σ0 := (Program.assign doneReg (.const 0)).eval σ
-  let σ1 := (Program.assign lengthReg (.const 0)).eval σ0
-  have hσ0b : σ0 boundReg = σ boundReg := by
-    simp [σ0, eval_assign, Expr.eval, writeReg_diff _ doneReg _ _ hbd]
-  have hσ1b : σ1 boundReg = σ boundReg := by
-    simp [σ1, eval_assign, Expr.eval, writeReg_diff _ lengthReg _ _ hbl, hσ0b]
-  have hσ1c : σ1 cursorReg = σ cursorReg := by
-    simp [σ1, σ0, eval_assign, Expr.eval,
-      writeReg_diff _ lengthReg _ _ hcl, writeReg_diff _ doneReg _ _ hcd]
-  have hσ1l : σ1 lengthReg = 0 := by
-    simp [σ1, eval_assign, Expr.eval, writeReg_same]
-  have hnat : ProgramBoundedIn B σ1
-      (decodeNatProgramAt cursorReg lengthReg doneReg boundReg) := by
-    apply programBoundedIn_decodeNatProgramAt_of_bounds cursorReg lengthReg doneReg boundReg B σ1
-      hcl hcd hld ⟨hcurI, hlenI, hdoneI, hboundI⟩
-    · rw [hσ1c, hσ1b]
-      omega
-    · rw [hσ1l, hσ1b]
-      omega
-  let σ2 := (decodeNatProgramAt cursorReg lengthReg doneReg boundReg).eval σ1
-  unfold decodeClauseWithLengthPrefixAt
-  simp only [ProgramBoundedIn]
-  rw [show (Program.assign doneReg (.const 0)).eval σ = σ0 from rfl]
-  rw [show (Program.assign lengthReg (.const 0)).eval σ0 = σ1 from rfl]
-  rw [show (decodeNatProgramAt cursorReg lengthReg doneReg boundReg).eval σ1 = σ2 from rfl]
-  refine ⟨⟨hdoneI, by simp [ExprBoundedIn]⟩, ?_⟩
-  refine ⟨⟨hlenI, by simp [ExprBoundedIn]⟩, ?_⟩
-  refine ⟨hnat, ?_⟩
-  refine ⟨⟨hdoneI, by simp [ExprBoundedIn]⟩, ?_⟩
-  exact ⟨hremI, hlenI⟩
+      (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg) :=
+  programBoundedIn_decodeClauseWithLengthPrefixAt_of_bounds B cursorReg doneReg remainingReg
+    lengthReg boundReg σ hidx hdist hbudget
 
 /-- One `decodeClauseEvalStepAt` visit never raises `remainingReg`: the guarded step
 decrements it and every other write target is distinct. -/
