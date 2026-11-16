@@ -2,6 +2,9 @@ module
 
 public import NPComplete.CookLevin.Verifier.PairPrelude
 public import NPComplete.CookLevin.Verifier.CNFEvalTop
+meta import NPComplete.Meta.StageDiscipline
+meta import NPComplete.Meta.StageDisciplineCheck
+public import NPComplete.CookLevin.Verifier.CNFEvalStages
 public import NPComplete.RAMToTM.ThreeSat.Pipeline.ThreeSatLoaderRelocate
 public import NPComplete.CookLevin.UniformPackaging.OutputBounds
 public import NPComplete.CookLevin.UniformPackaging.CostAndOperands
@@ -30,13 +33,15 @@ namespace NPComplete.CookLevin
 
 open NPComplete.RAMToTM
 open NPComplete.BoundedWhile (Program Store Expr eval_seq eval_assign
-  writeReg_diff writeReg_same)
+  writeReg_diff writeReg_same RegLayout LayoutFact)
 open NPComplete.BitEncoding (Bits encodeList)
 open NPComplete.BitCostRAM (bitLen bitLen_le_succ)
 open Turing
 open Computability (encodeBool)
 open Polynomial
 open NPComplete.SAT
+
+stage_default_free impl
 
 /-! ## The composed program
 
@@ -165,35 +170,62 @@ lemma satVerifierProg_correct (φ : CNF) (w : List Bool) :
     omega
   have hbelowW : 16 ≤ τ 5 := by have := hSpec.bases.1; omega
   have hWA : τ 5 < τ 1 := hSpec.bases.2
-  have hfinal := decodeCNFEvalProgramAt_eval 1 6 7 9 8 10 11 12 13 5 14 15 0
-    (τ 1) (τ 5) L φ.clauses ([] : Bits) σ3
-    (hcp := by omega) (hcv := by omega) (hcd := by omega) (hpv := by omega) (hpd := by omega)
-    (hvd := by omega) (hrc := by omega) (hrp := by omega) (hrv := by omega) (hrd := by omega)
-    (hbc := by omega) (hbp := by omega) (hbr := by omega)
-    (hvc := by omega) (hvr := by omega)
-    (hwc := by omega) (hwp := by omega) (hwv := by omega) (hwd := by omega)
-    (hwr := by omega) (hwb := by omega) (hwl := by omega) (hwlen := by omega)
-    (hsc := by omega) (hsp := by omega) (hsv := by omega) (hsd := by omega) (hsr := by omega)
-    (hsb := by omega) (hsl := by omega) (hsw := by omega) (hlc := by omega) (hld := by omega)
-    (hkc := by omega) (hkp := by omega) (hkv := by omega) (hkd := by omega) (hkr := by omega)
-    (hks := by omega) (hkb := by omega) (hkval := by omega) (hkw := by omega) (hkl := by omega)
-    (hbboc := by omega) (hbbop := by omega) (hbbov := by omega) (hbbod := by omega)
-    (hbbor := by omega) (hbbos := by omega) (hbbob := by omega) (hbboval := by omega)
-    (hbbol := by omega) (hbbok := by omega) (hbboo := by omega)
-    (houtc := by omega) (houtd := by omega) (houtk := by omega) (houtw := by omega)
-    (hbelowW := ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega⟩)
-    (hlenW := by omega) (hcnfregW := by omega)
-    (houterW := by omega)
-    (hbelow := ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
-      by omega, by omega, by omega, by omega, by omega⟩)
-    (hWA := hWA) (hwbase := hσ35) (hcnf0 := hσ315) (hb := hσ30)
-    (hbound := hboundc) (hbound2 := hboundc2) (hvarbound := hvarbound) (hc := hσ31)
-    (hbits := by simpa [encodeCNF] using hσ3bits) (w := w)
-    (hwbits := by
-      intro c hc l hl
+  have hXend : τ 1 + (encodeCNF φ).length ≤ pairPreludeBound L := by
+    have h := hSpec.x_end_le
+    rw [← hLdef] at h
+    exact h
+  have haddr : τ 1 ≤ pairPreludeBound L := by omega
+  have hPplus : pairPreludeBound L + L ≤ (200 * (L + 1) ^ 4 : ℕ) := by
+    simp [pairPreludeBound]
+    nlinarith [sq_nonneg L, sq_nonneg (L * L)]
+  have hbase : τ 5 ≤ pairPreludeBound L := by
+    have hlt := hSpec.bases.2
+    omega
+  have hstage : LayoutStage stdLayout (200 * (L + 1) ^ 4) (decodeCNFEvalProgramAtL stdLayout.reg)
+      (clauseInvFact stdLayout (τ 1) 1 (τ 5) L (encodeList encodeClause φ.clauses ++ ([] : Bits))
+        φ.clauses w (by rw [stdLayout_top]; omega) (by rw [stdLayout_top]; omega))
+      (LayoutFact.reg .cnf (if ∀ c ∈ φ.clauses, clauseSatBool w c = true then 1 else 0))
+      (progFoot stdLayout) := by
+    have hwb : τ 5 + L ≤ 200 * (L + 1) ^ 4 := by
+      have hbound := hPplus
+      have hbase' := hbase
+      simp only [pairPreludeBound] at hbound hbase'
+      omega
+    have houter : τ 1 + L + L * (1 + L + L * (L + 1)) + 2 + 2 * L + L * (L + 1) ≤
+        200 * (L + 1) ^ 4 := by
+      have haddr' : τ 1 ≤ 5 * L + 101 := by simpa [pairPreludeBound] using haddr
+      nlinarith [haddr', sq_nonneg L, sq_nonneg (L * L)]
+    exact decodeCNFEvalProgramAt_stage_of_bounds stdLayout (200 * (L + 1) ^ 4) (τ 1) (τ 5) L
+      φ.clauses ([] : Bits) w (by rw [stdLayout_top]; omega) (by rw [stdLayout_top]; omega)
+      hWA hboundc hboundc2 hvarbound hwb houter
+  have hfact : (clauseInvFact stdLayout (τ 1) 1 (τ 5) L (encodeList encodeClause φ.clauses ++
+      ([] : Bits)) φ.clauses w (by rw [stdLayout_top]; omega)
+      (by rw [stdLayout_top]; omega)).holds σ3 := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+    · show σ3 (stdLayout.reg .cursor) = τ 1
+      rw [stdLayout_reg_cursor]
+      exact hσ31
+    · show σ3 (stdLayout.reg .cnf) = 1
+      rw [stdLayout_reg_cnf]
+      exact hσ315
+    · show σ3 (stdLayout.reg .wBase) = τ 5
+      rw [stdLayout_reg_wBase]
+      exact hσ35
+    · show σ3 (stdLayout.reg .bound) = L
+      rw [stdLayout_reg_bound]
+      exact hσ30
+    · show BitsFrom σ3 (τ 1) (encodeList encodeClause φ.clauses ++ [])
+      simpa [encodeCNF, encodeList] using hσ3bits
+    · intro c hc l hl
       exact hσ3wbits l.var (lt_of_lt_of_le (cnfVarBound_gt φ c hc l hl)
-        (cnfVarBound_le_encodeCNF φ)))
-  rw [satVerifierProg, eval_seq, eval_seq, hfinal]
+        (cnfVarBound_le_encodeCNF φ))
+  have hfinal : (decodeCNFEvalProgramAtL stdLayout.reg).eval σ3 (stdLayout.reg .cnf) =
+      if ∀ c ∈ φ.clauses, clauseSatBool w c = true then 1 else 0 :=
+    (hstage.spec σ3 hfact).1
+  rw [satVerifierProg, eval_seq, eval_seq]
+  show (decodeCNFEvalProgramAtL stdLayout.reg).eval σ3 15 =
+    if cnfSatBool w φ = true then 1 else 0
+  rw [← stdLayout_reg_cnf, hfinal]
   simp [cnfSatBool, List.all_eq_true]
 
 /-! ## `ProgramBoundedIn`
@@ -240,7 +272,7 @@ lemma satVerifierProg_bounded_in_phase2 (φ : CNF) (w : List Bool) :
       (decodeCNFEvalProgramAt 1 6 7 9 8 10 11 12 13 5 14 15 0) := by
   have hLeq : (pairBits (encodeCNF φ) w).length = 2 * (encodeCNF φ).length + 1 + w.length :=
     pairBits_length (encodeCNF φ) w
-  obtain ⟨hp1, hτ_le, _⟩ := satVerifierProg_bounded_in_phase1 φ w
+  obtain ⟨hp1, _, _⟩ := satVerifierProg_bounded_in_phase1 φ w
   set L := (pairBits (encodeCNF φ) w).length with hLdef
   set B := 200 * (L+1)^4 with hBdef
   have hB1 : 1 ≤ B := by rw [hBdef]; nlinarith [pow_pos (show 0 < L+1 by omega) 4]
@@ -248,14 +280,12 @@ lemma satVerifierProg_bounded_in_phase2 (φ : CNF) (w : List Bool) :
   set σ3 := (Program.assign 15 (Expr.const 1)).eval τ with hσ3def
   have hphase2 := satVerifierProg_phase2 φ w
   rw [← hσ3def, ← hτdef] at hphase2
-  rcases hphase2 with ⟨hSpec, hσ30, hσ31, _, hσ35, _, _, _⟩
+  rcases hphase2 with ⟨hSpec, hσ30, hσ31, _, hσ35, hσ315, hσ3bits, hσ3wbits⟩
   rw [← hLdef] at hσ30
   have hp3 : ProgramBoundedIn B τ (Program.assign 15 (Expr.const 1)) := by
     refine ⟨by have := hB1; omega, ?_⟩
     simp only [ExprBoundedIn]
     omega
-  have hσ3_le : StoreValuesLe B σ3 :=
-    program_eval_storeValuesLe τ (Program.assign 15 (Expr.const 1)) hB1 hτ_le hp3 trivial
   have hXend : τ 1 + (encodeCNF φ).length ≤ pairPreludeBound L := by
     have h := hSpec.x_end_le
     rw [← hLdef] at h
@@ -268,34 +298,64 @@ lemma satVerifierProg_bounded_in_phase2 (φ : CNF) (w : List Bool) :
   have hbase : τ 5 ≤ pairPreludeBound L := by
     have hlt := hSpec.bases.2
     omega
-  have hσ3wbudget : σ3 5 + σ3 0 ≤ B := by
-    rw [hσ35, hσ30]
-    have hbound := hPplus
-    have hbase' := hbase
-    rw [hBdef]
-    simp only [pairPreludeBound] at hbound hbase'
+  have hbelowW : 16 ≤ τ 5 := by have := hSpec.bases.1; omega
+  have hWA : τ 5 < τ 1 := hSpec.bases.2
+  have hsum := encodeCNF_sum_lits_succ_le φ
+  have hboundc : φ.clauses.length + 1 ≤ L := by omega
+  have hboundc2 : ∀ c ∈ φ.clauses, c.lits.length + 1 ≤ L := by
+    intro c hc
+    have hmem : (c.lits.length + 1) ∈ φ.clauses.map (fun c => c.lits.length + 1) :=
+      List.mem_map_of_mem hc
+    have hle := List.single_le_sum (fun x _ => Nat.zero_le x) _ hmem
     omega
-  have hσ3houter : σ3 1 + σ3 0 + σ3 0 * (1 + σ3 0 + σ3 0 * (σ3 0 + 1)) +
-      2 + 2 * σ3 0 + σ3 0 * (σ3 0 + 1) ≤ B := by
-    rw [hσ31, hσ30, hBdef]
-    have haddr' : τ 1 ≤ 5 * L + 101 := by simpa [pairPreludeBound] using haddr
-    nlinarith [haddr', sq_nonneg L, sq_nonneg (L * L)]
+  have hvarbound : ∀ c ∈ φ.clauses, ∀ l ∈ c.lits, l.var + 1 ≤ L := by
+    intro c hc l hl
+    have h1 := cnfVarBound_gt φ c hc l hl
+    have h2 := cnfVarBound_le_encodeCNF φ
+    omega
+  have hstage : LayoutStage stdLayout B (decodeCNFEvalProgramAtL stdLayout.reg)
+      (clauseInvFact stdLayout (τ 1) 1 (τ 5) L (encodeList encodeClause φ.clauses ++ ([] : Bits))
+        φ.clauses w (by rw [stdLayout_top]; omega) (by rw [stdLayout_top]; omega))
+      (LayoutFact.reg .cnf (if ∀ c ∈ φ.clauses, clauseSatBool w c = true then 1 else 0))
+      (progFoot stdLayout) := by
+    have hwb : τ 5 + L ≤ B := by
+      have hbound := hPplus
+      have hbase' := hbase
+      rw [hBdef]
+      simp only [pairPreludeBound] at hbound hbase'
+      omega
+    have houter : τ 1 + L + L * (1 + L + L * (L + 1)) + 2 + 2 * L + L * (L + 1) ≤ B := by
+      rw [hBdef]
+      have haddr' : τ 1 ≤ 5 * L + 101 := by simpa [pairPreludeBound] using haddr
+      nlinarith [haddr', sq_nonneg L, sq_nonneg (L * L)]
+    exact decodeCNFEvalProgramAt_stage_of_bounds stdLayout B (τ 1) (τ 5) L φ.clauses
+      ([] : Bits) w (by rw [stdLayout_top]; omega) (by rw [stdLayout_top]; omega)
+      hWA hboundc hboundc2 hvarbound hwb houter
+  have hfact : (clauseInvFact stdLayout (τ 1) 1 (τ 5) L (encodeList encodeClause φ.clauses ++
+      ([] : Bits)) φ.clauses w (by rw [stdLayout_top]; omega)
+      (by rw [stdLayout_top]; omega)).holds σ3 := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+    · show σ3 (stdLayout.reg .cursor) = τ 1
+      rw [stdLayout_reg_cursor]
+      exact hσ31
+    · show σ3 (stdLayout.reg .cnf) = 1
+      rw [stdLayout_reg_cnf]
+      exact hσ315
+    · show σ3 (stdLayout.reg .wBase) = τ 5
+      rw [stdLayout_reg_wBase]
+      exact hσ35
+    · show σ3 (stdLayout.reg .bound) = L
+      rw [stdLayout_reg_bound]
+      exact hσ30
+    · show BitsFrom σ3 (τ 1) (encodeList encodeClause φ.clauses ++ [])
+      simpa [encodeCNF, encodeList] using hσ3bits
+    · intro c hc l hl
+      exact hσ3wbits l.var (lt_of_lt_of_le (cnfVarBound_gt φ c hc l hl)
+        (cnfVarBound_le_encodeCNF φ))
   have hp4 : ProgramBoundedIn B σ3
       (decodeCNFEvalProgramAt 1 6 7 9 8 10 11 12 13 5 14 15 0) :=
-    programBoundedIn_decodeCNFEvalProgramAt_of_store_bounds B 1 6 7 9 8 10 11 12 13 5 14 15 0 σ3
-      hσ3_le
-      ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
-        by omega, by omega, by omega, by omega⟩
-      ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega⟩
-      (hcl := by omega) (hld := by omega) (hrc := by omega) (hcbit := by omega)
-      (hcval := by omega) (hcsat := by omega) (hbl := by omega) (hbb := by omega)
-      (hbval := by omega) (hbs := by omega) (hbk := by omega) (hck := by omega)
-      (hrs := by omega) (hsd := by omega) (hsl := by omega) (hcw := by omega)
-      (hpw := by omega) (hvw := by omega) (hdw := by omega) (hrw := by omega)
-      (hbw := by omega) (hvalw := by omega) (hsw := by omega) (hlw := by omega)
-      (hkw := by omega) (hrv := by omega) (hco := by omega) (hdo := by omega)
-      (hoBnd := by omega) (how := by omega) (hB1 := hB1) (hwbudget := hσ3wbudget)
-      (houterCoarse := hσ3houter)
+    show ProgramBoundedIn B σ3 (decodeCNFEvalProgramAtL stdLayout.reg) from
+      (hstage.spec σ3 hfact).2.2
   exact ⟨hp1, hp3, hp4⟩
 
 lemma satVerifierProg_bounded_in (φ : CNF) (w : List Bool) :
@@ -408,3 +468,5 @@ noncomputable def satVerifierDecider :
         (pairBits (encodeCNF x.1) x.2) (200*(N+1)^4) hB1 hσle hp scanFree_satVerifierProg
 
 end NPComplete.CookLevin
+
+#check_stage_discipline all

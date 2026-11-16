@@ -2,6 +2,7 @@ module
 
 public import NPComplete
 meta import NPComplete.Meta.ApiLayer
+meta import NPComplete.Meta.StageDisciplineCheck
 public meta import NPComplete.Meta.ApiLayerCheck
 
 /-!
