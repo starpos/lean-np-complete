@@ -205,7 +205,7 @@ def decodeCNFEvalProgramAt
       | .bound => boundReg
       | _ => 0)
 
-/-- Correctness of `decodeCNFEvalProgramAt`: decoding the clause-count prefix off
+/-- Correctness of `decodeCNFEvalProgramAtL`: decoding the clause-count prefix off
     `encodeList encodeClause cs ++ rest` and then folding `decodeCNFEvalClauseStepAt`
     over the decoded clauses leaves `cnfReg` holding `cnfSatBool w ⟨cs⟩`'s Boolean value.
     `outerReg` is below `wBase` (`houterW`); the cursor, literal, loop-state, length,
@@ -223,9 +223,7 @@ def decodeCNFEvalProgramAt
     (hbits : BitsFrom σ addr (encodeList encodeClause cs ++ rest))
     (w : List Bool)
     (hwbits : ∀ c ∈ cs, ∀ l ∈ c.lits, σ (wBase + l.var) = if w.getD l.var false then 1 else 0) :
-    (decodeCNFEvalProgramAt (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
-        (R.reg .outer) (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val)
-        (R.reg .wBase) (R.reg .length) (R.reg .cnf) (R.reg .bound)).eval σ (R.reg .cnf) =
+    (decodeCNFEvalProgramAtL R.reg).eval σ (R.reg .cnf) =
       (if ∀ c ∈ cs, clauseSatBool w c = true then 1 else 0) := by
   set cursorReg := R.reg .cursor
   set polReg := R.reg .pol
@@ -366,7 +364,9 @@ def decodeCNFEvalProgramAt
   have haddr' : R.top ≤ addr + cs.length + 1 := by omega
   have hloop := decode_cnf_eval_clause_loop_eval R bound (addr + cs.length + 1) 1 wBase cs rest σ2
       haddr' hwtop hWA' hσ2wbase hσ2sat0 (Or.inr rfl) hbound2 hvarbound hσ2cur hbits2 w hwbits2
-  simpa using hloop.2
+  have hloop2 := hloop.2
+  simp at hloop2
+  exact hloop2
 
 /-! ## Stage contracts
 
@@ -457,8 +457,11 @@ one clause forward. -/
       (show BitsFrom σ addr (encodeClause c ++ ((cs.map encodeClause).flatten ++ rest)) from by
         rw [← List.append_assoc]; exact hbits) w
       (hwit c (by simp)) (fun cc hcc => hwit cc (by simp [hcc]))
+  have hσ2a : σ2 = (decodeCNFEvalClauseStep (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
+      (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
+      (R.reg .length) (R.reg .cnf) bound).eval σ := hσ2
   have hbound2 : σ2 (R.reg .bound) = bound := by
-    rw [hσ2, ← decodeCNFEvalClauseStepAt_eq (R.reg .cursor) (R.reg .pol) (R.reg .var)
+    rw [hσ2a, ← decodeCNFEvalClauseStepAt_eq (R.reg .cursor) (R.reg .pol) (R.reg .var)
       (R.reg .done) (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
       (R.reg .length) (R.reg .cnf) (R.reg .bound) bound σ hσbound
       (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
@@ -472,7 +475,7 @@ one clause forward. -/
       (R.reg_ne (by decide)) (R.reg_ne (by decide)) (R.reg_ne (by decide))
       (R.reg_ne (by decide))]
     exact hσbound
-  rw [← hσ2]
+  rw [← hσ2a]
   exact ⟨hcur2, hcnf2, hwb2, hbound2, hbits2, hwbits2⟩
 
 /-- The clause loop as a bundled stage: one iteration per clause folds every clause's

@@ -170,9 +170,7 @@ untouched, so the tail satisfies the same invariants. -/
     (hwbits_c : ∀ l ∈ c.lits, σ (wBase + l.var) = if w.getD l.var false then 1 else 0)
     (hwbits_cs : ∀ cc ∈ cs, ∀ l ∈ cc.lits,
       σ (wBase + l.var) = if w.getD l.var false then 1 else 0) :
-    ∃ σ2, σ2 = (decodeCNFEvalClauseStep (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
-        (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-        (R.reg .length) (R.reg .cnf) bound).eval σ ∧
+    ∃ σ2, σ2 = (decodeCNFEvalClauseStepL R.reg bound).eval σ ∧
       σ2 (R.reg .cursor) = addr + (encodeClause c).length ∧ σ2 (R.reg .wBase) = wBase ∧
       σ2 (R.reg .cnf) = (if clauseSatBool w c then s0 else 0) ∧
       BitsFrom σ2 (addr + (encodeClause c).length) rest ∧
@@ -352,20 +350,12 @@ the live register values, the input tail and the witness cells of the remaining 
     (hbits : BitsFrom σ addr ((cs.map encodeClause).flatten ++ rest))
     (w : List Bool)
     (hwbits : ∀ c ∈ cs, ∀ l ∈ c.lits, σ (wBase + l.var) = if w.getD l.var false then 1 else 0) :
-    (loopEval (decodeCNFEvalClauseStep (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
-        (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-        (R.reg .length) (R.reg .cnf) bound) cs.length σ) (R.reg .cursor) =
+    (loopEval (decodeCNFEvalClauseStepL R.reg bound) cs.length σ) (R.reg .cursor) =
       addr + (cs.map encodeClause).flatten.length ∧
-    (loopEval (decodeCNFEvalClauseStep (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
-        (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-        (R.reg .length) (R.reg .cnf) bound) cs.length σ) (R.reg .cnf) =
+    (loopEval (decodeCNFEvalClauseStepL R.reg bound) cs.length σ) (R.reg .cnf) =
       (if s0 = 1 ∧ ∀ c ∈ cs, clauseSatBool w c = true then 1 else 0) ∧
-    (loopEval (decodeCNFEvalClauseStep (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
-        (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-        (R.reg .length) (R.reg .cnf) bound) cs.length σ) (R.reg .wBase) = wBase ∧
-    BitsFrom (loopEval (decodeCNFEvalClauseStep (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
-        (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-        (R.reg .length) (R.reg .cnf) bound) cs.length σ)
+    (loopEval (decodeCNFEvalClauseStepL R.reg bound) cs.length σ) (R.reg .wBase) = wBase ∧
+    BitsFrom (loopEval (decodeCNFEvalClauseStepL R.reg bound) cs.length σ)
       (addr + (cs.map encodeClause).flatten.length) rest := by
   set cursorReg := R.reg .cursor
   set polReg := R.reg .pol
@@ -491,13 +481,9 @@ the live register values, the input tail and the witness cells of the remaining 
     (hbits : BitsFrom σ addr ((cs.map encodeClause).flatten ++ rest))
     (w : List Bool)
     (hwbits : ∀ c ∈ cs, ∀ l ∈ c.lits, σ (wBase + l.var) = if w.getD l.var false then 1 else 0) :
-    (loopEval (decodeCNFEvalClauseStep (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
-        (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-        (R.reg .length) (R.reg .cnf) bound) cs.length σ) (R.reg .cursor) =
+    (loopEval (decodeCNFEvalClauseStepL R.reg bound) cs.length σ) (R.reg .cursor) =
       addr + (cs.map encodeClause).flatten.length ∧
-    (loopEval (decodeCNFEvalClauseStep (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done)
-        (R.reg .remaining) (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase)
-        (R.reg .length) (R.reg .cnf) bound) cs.length σ) (R.reg .cnf) =
+    (loopEval (decodeCNFEvalClauseStepL R.reg bound) cs.length σ) (R.reg .cnf) =
       (if s0 = 1 ∧ ∀ c ∈ cs, clauseSatBool w c = true then 1 else 0) :=
   ⟨(decode_cnf_eval_clause_loop_eval_full R bound addr s0 wBase cs rest σ haddr hb hWA hwbase
       hcnf hs0 hbound hvarbound hc hbits w hwbits).1,
