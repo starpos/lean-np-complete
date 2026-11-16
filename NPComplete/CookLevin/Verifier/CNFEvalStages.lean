@@ -5,6 +5,7 @@ meta import NPComplete.Meta.StageDiscipline
 meta import NPComplete.Meta.StageDisciplineCheck
 public import NPComplete.CookLevin.Verifier.CNFEvalTop
 public import NPComplete.RAMToTM.Generic.Api.ValuesLeOn
+public import NPComplete.RAMToTM.Generic.Api.ResStages
 
 /-!
 # Resource-connected stage contracts for the CNF evaluator
@@ -32,7 +33,7 @@ namespace NPComplete.CookLevin
 open NPComplete.RAMToTM
 open NPComplete.BoundedWhile
   (Program Store Expr eval_assign eval_seq writeReg writeReg_diff writeReg_same
-    eval_ifNZ eval_forN loopEval loopEval_succ eval_assignInd eval_skip)
+    eval_ifNZ eval_forN loopEval loopEval_succ eval_assignInd eval_skip ReadsOnly)
 open NPComplete.BoundedWhile (RegLayout LayoutFact)
 open NPComplete.BitEncoding (Bits encodeNat_length encodeList encodeNat)
 open NPComplete.SAT (Literal)
@@ -165,7 +166,7 @@ remaining bound, derived from the length-prefix postcondition. -/
         valReg wBaseReg lengthReg cnfReg boundReg) := by
   rcases hidx with ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
   rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-  have hB1 : 1 ≤ B := by omega
+  rcases hsatFrame with ⟨hsc, hsd, hsr, hsl, hsb, hsw⟩
   have hprefix : ProgramBoundedIn B σ
       (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg boundReg) :=
     programBoundedIn_decodeClauseWithLengthPrefixAt_of_value_bounds B cursorReg doneReg
@@ -187,7 +188,6 @@ remaining bound, derived from the length-prefix postcondition. -/
       boundReg).eval σ wBaseReg = σ wBaseReg :=
     decodeClauseWithLengthPrefixAt_frame cursorReg doneReg remainingReg lengthReg boundReg
       wBaseReg σ hcw.symm hdw.symm hrw.symm hlw.symm
-  rcases hsatFrame with ⟨hsc, hsd, hsr, hsl, hsb, hsw⟩
   set σ0 := (decodeClauseWithLengthPrefixAt cursorReg doneReg remainingReg lengthReg
     boundReg).eval σ with hσ0def
   set σ1 := (Program.assign satReg (.const 0)).eval σ0 with hσ1def
@@ -198,72 +198,85 @@ remaining bound, derived from the length-prefix postcondition. -/
   have hσ1w : σ1 wBaseReg = σ0 wBaseReg := by
     rw [hσ1def, eval_assign, Expr.eval]; exact writeReg_diff σ0 satReg 0 wBaseReg hsw.symm
   have hBndEq : σ1 boundReg = σ boundReg := by rw [hσ1bnd, hprefixBound]
-  have hRemLe0 : σ0 remainingReg ≤ σ boundReg := hprefixRem
-  have hRemLe1 : σ1 remainingReg ≤ σ boundReg := by rw [hσ1rem]; exact hRemLe0
+  have hRemLe1 : σ1 remainingReg ≤ σ boundReg := by rw [hσ1rem]; exact hprefixRem
   have hσ1wbase : σ1 wBaseReg = σ wBaseReg := by rw [hσ1w, hprefixW]
-  have hboundB : σ boundReg ≤ B := by omega
+  have hσ1cur : σ1 cursorReg ≤ σ cursorReg + 1 + σ boundReg := by
+    have h1 : σ1 cursorReg = σ0 cursorReg := by
+      rw [hσ1def, eval_assign, Expr.eval]; exact writeReg_diff σ0 satReg 0 cursorReg hsc.symm
+    rw [h1]; exact hprefixCur
+  have hloop : ProgramBoundedIn B σ1
+      (Program.forN (.reg remainingReg)
+        (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
+          valReg wBaseReg boundReg)) := by
+    refine programBoundedIn_forN_of_invariant B (σ boundReg) σ1 (.reg remainingReg) _
+      (fun j τ => τ boundReg = σ boundReg ∧ τ wBaseReg = σ wBaseReg ∧
+        τ remainingReg ≤ σ1 remainingReg ∧
+        τ cursorReg ≤ σ1 cursorReg + j * (σ boundReg + 1))
+      (show ExprBoundedIn B σ1 (Expr.reg remainingReg) from hri) ?_ (fun j _ => ?_)
+      (fun j _ τ hI => ?_)
+    · show (Expr.reg remainingReg).eval σ1 ≤ σ boundReg
+      simp only [Expr.eval]
+      exact hRemLe1
+    · have hboundτ : (loopEval (decodeClauseEvalStepAt cursorReg polReg varReg doneReg
+            remainingReg satReg bitReg valReg wBaseReg boundReg) j σ1) boundReg = σ boundReg :=
+        (decodeClauseEvalStepAt_loopEval_bound_frame cursorReg polReg varReg doneReg remainingReg
+          satReg bitReg valReg wBaseReg boundReg j σ1 hbc hbp hbv hbd hbr hsb.symm hbb
+          hbval).trans hBndEq
+      have hwτ : (loopEval (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg
+          satReg bitReg valReg wBaseReg boundReg) j σ1) wBaseReg = σ wBaseReg :=
+        (decodeClauseEvalStepAt_loopEval_wBase_frame cursorReg polReg varReg doneReg remainingReg
+          satReg bitReg valReg wBaseReg boundReg j σ1 hcw hpw hvw hdw hrw hbitw hvw2
+          hsw).trans hσ1wbase
+      have hremτ : (loopEval (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg
+          satReg bitReg valReg wBaseReg boundReg) j σ1) remainingReg ≤ σ1 remainingReg :=
+        decodeClauseEvalStepAt_loopEval_remaining_le cursorReg polReg varReg doneReg remainingReg
+          satReg bitReg valReg wBaseReg boundReg j σ1 hrc hrp hrv hrd hrbit hrval hsr.symm
+      have hcurτ : (loopEval (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg
+          satReg bitReg valReg wBaseReg boundReg) j σ1) cursorReg ≤
+          σ1 cursorReg + j * (σ boundReg + 1) := by
+        rw [← hBndEq]
+        exact decodeClauseEvalStepAt_cursor_le cursorReg polReg varReg doneReg remainingReg
+          satReg bitReg valReg wBaseReg boundReg j σ1
+          hcp hcv hcd hrc hcbit hcval hsc.symm hbc hbp hbv hbd hbr hbb hbval hsb.symm
+      exact ⟨hboundτ, hwτ, hremτ, hcurτ⟩
+    · obtain ⟨hbdτ, hwτ, hremτ, hcurτ⟩ := hI
+      have hjB : j ≤ σ boundReg := by omega
+      have hmb : j * (σ boundReg + 1) ≤ σ boundReg * (σ boundReg + 1) :=
+        Nat.mul_le_mul_right _ hjB
+      have hcurm : τ cursorReg ≤ B := by omega
+      have hremm : ((decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval τ)
+          remainingReg ≤ B := by
+        rw [decodeLiteralValueProgramAt_frame cursorReg polReg varReg doneReg boundReg remainingReg
+          τ hrc hrp hrv hrd]
+        omega
+      have hbudm : τ cursorReg + 1 + τ boundReg ≤ B := by rw [hbdτ]; omega
+      have hwbm : τ wBaseReg + τ boundReg ≤ B := by rw [hwτ, hbdτ]; exact hwbudget
+      exact programBoundedIn_decodeClauseEvalStepAt_of_local_bounds B cursorReg polReg varReg
+        doneReg remainingReg satReg bitReg valReg wBaseReg boundReg τ
+        ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hbi⟩
+        ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd⟩
+        hcw hpw hvw hdw hrw hrv hcurm hremm hbudm hwbm
   have hclause : ProgramBoundedIn B σ
       (decodeClauseEvalWithLengthProgramAt cursorReg polReg varReg doneReg remainingReg satReg
         bitReg valReg wBaseReg lengthReg boundReg) := by
     unfold decodeClauseEvalWithLengthProgramAt
-    simp only [ProgramBoundedIn, ExprBoundedIn, Expr.eval]
-    refine ⟨hprefix, ⟨hsi, Nat.zero_le B⟩, hri, fun m hm => ?_⟩
-    set τm := loopEval (decodeClauseEvalStepAt cursorReg polReg varReg doneReg remainingReg
-      satReg bitReg valReg wBaseReg boundReg) m σ1 with hτmdef
-    have hboundτ : τm boundReg = σ boundReg :=
-      (decodeClauseEvalStepAt_loopEval_bound_frame cursorReg polReg varReg doneReg remainingReg
-        satReg bitReg valReg wBaseReg boundReg m σ1 hbc hbp hbv hbd hbr hsb.symm hbb
-        hbval).trans hBndEq
-    have hwτ : τm wBaseReg = σ wBaseReg :=
-      (decodeClauseEvalStepAt_loopEval_wBase_frame cursorReg polReg varReg doneReg remainingReg
-        satReg bitReg valReg wBaseReg boundReg m σ1 hcw hpw hvw hdw hrw hbitw hvw2
-        hsw).trans hσ1wbase
-    have hmB : m ≤ σ boundReg := le_trans (le_of_lt hm) hRemLe1
-    have hremτ : τm remainingReg ≤ σ1 remainingReg := by
-      rw [hτmdef]
-      exact decodeClauseEvalStepAt_loopEval_remaining_le cursorReg polReg varReg doneReg
-        remainingReg satReg bitReg valReg wBaseReg boundReg m σ1 hrc hrp hrv hrd hrbit hrval
-        hsr.symm
-    have hcurτ : τm cursorReg ≤ σ1 cursorReg + m * (σ1 boundReg + 1) := by
-      rw [hτmdef]
-      exact decodeClauseEvalStepAt_cursor_le cursorReg polReg varReg doneReg remainingReg
-        satReg bitReg valReg wBaseReg boundReg m σ1
-        hcp hcv hcd hrc hcbit hcval hsc.symm hbc hbp hbv hbd hbr hbb hbval hsb.symm
-    rw [hBndEq] at hcurτ
-    have hprod : m * (σ boundReg + 1) ≤ σ boundReg * (σ boundReg + 1) :=
-      Nat.mul_le_mul_right _ hmB
-    have hσ1cur : σ1 cursorReg ≤ σ cursorReg + 1 + σ boundReg := by
-      have h1 : σ1 cursorReg = σ0 cursorReg := by
-        rw [hσ1def, eval_assign, Expr.eval]; exact writeReg_diff σ0 satReg 0 cursorReg hsc.symm
-      omega
-    have hbudm : τm cursorReg + 1 + τm boundReg ≤ B := by
-      rw [hboundτ]
-      omega
-    have hwbm : τm wBaseReg + τm boundReg ≤ B := by rw [hwτ, hboundτ]; exact hwbudget
-    have hremm : ((decodeLiteralValueProgramAt cursorReg polReg varReg doneReg boundReg).eval τm)
-        remainingReg ≤ B := by
-      rw [decodeLiteralValueProgramAt_frame cursorReg polReg varReg doneReg boundReg remainingReg
-        τm hrc hrp hrv hrd]
-      omega
-    have hcurm : τm cursorReg ≤ B := by omega
-    exact programBoundedIn_decodeClauseEvalStepAt_of_local_bounds B cursorReg polReg varReg
-      doneReg remainingReg satReg bitReg valReg wBaseReg boundReg τm
-      ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hbi⟩
-      ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd⟩
-      hcw hpw hvw hdw hrw hrv hcurm hremm hbudm hwbm
+    simp only [ProgramBoundedIn]
+    exact ⟨hprefix, ⟨⟨hsi, Nat.zero_le B⟩, hloop⟩⟩
   change ProgramBoundedIn B σ
       ((decodeClauseEvalWithLengthProgramAt cursorReg polReg varReg doneReg remainingReg satReg
         bitReg valReg wBaseReg lengthReg boundReg).seq (andIntoProg satReg cnfReg))
   simp only [ProgramBoundedIn]
   exact ⟨hclause, programBoundedIn_andIntoProg B satReg cnfReg _ hsi hki⟩
 
-/-- `programBoundedIn_decodeCNFEvalClauseStepAt_at_loop_of_outer_bounds` without
-`StoreValuesLe`: the per-visit store hypothesis becomes the per-visit value budgets,
-derived from the loop's cursor growth and the bound/`wBase` frames. -/
-@[stage_impl] lemma programBoundedIn_decodeCNFEvalClauseStepAt_at_loop_of_value_bounds
-    (B cursorReg polReg varReg doneReg remainingReg satReg bitReg valReg wBaseReg
-      lengthReg cnfReg boundReg m : ℕ) (σ σ2 : Store)
-    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧
+/-- Resource of the outer clause loop from the loop-entry value bounds: with the count
+register at most `BND`, the cursor at most `CUR`, and `bound`/`wBase` pinned to `BND`/`WB`,
+every visit of the clause step fits the entry budgets.  The per-visit skeleton (bounded-count
+`forN` under an invariant) is `programBoundedIn_forN_of_invariant`; this lemma supplies the
+loop's frames/growth and the clause-step budgets. -/
+@[stage_impl] lemma programBoundedIn_decodeCNFEvalClauseLoop_of_value_bounds
+    (B cursorReg polReg varReg doneReg outerReg remainingReg satReg bitReg valReg wBaseReg
+      lengthReg cnfReg boundReg CUR WB BND : ℕ) (ρ : Store)
+    (hidx : cursorReg ≤ B ∧ polReg ≤ B ∧ varReg ≤ B ∧ doneReg ≤ B ∧ outerReg ≤ B ∧
       remainingReg ≤ B ∧ satReg ≤ B ∧ bitReg ≤ B ∧ valReg ≤ B ∧ wBaseReg ≤ B ∧
       lengthReg ≤ B ∧ cnfReg ≤ B ∧ boundReg ≤ B)
     (hdist : cursorReg ≠ polReg ∧ cursorReg ≠ varReg ∧ cursorReg ≠ doneReg ∧
@@ -280,59 +293,56 @@ derived from the loop's cursor growth and the bound/`wBase` frames. -/
     (hkw : cnfReg ≠ wBaseReg) (hrv : remainingReg ≠ varReg)
     (hrp : remainingReg ≠ polReg) (hrd : remainingReg ≠ doneReg)
     (hrbit : remainingReg ≠ bitReg) (hrval : remainingReg ≠ valReg)
-    (hwbudget : σ wBaseReg + σ boundReg ≤ B)
-    (houterCoarse : σ cursorReg + σ boundReg +
-        σ boundReg * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) +
-        2 + 2 * σ boundReg + σ boundReg * (σ boundReg + 1) ≤ B)
-    (hb2' : σ2 boundReg = σ boundReg) (hw2 : σ2 wBaseReg = σ wBaseReg)
-    (hσ2cur : σ2 cursorReg ≤ σ cursorReg + σ boundReg) (houterLe : m ≤ σ boundReg) :
-    ProgramBoundedIn B
-      (loopEval
+    (hcount : ρ outerReg ≤ BND) (hcur : ρ cursorReg ≤ CUR) (hwb : ρ wBaseReg = WB)
+    (hbd : ρ boundReg = BND)
+    (hwbudget : WB + BND ≤ B)
+    (houterCoarse : CUR + BND * (1 + BND + BND * (BND + 1)) + 2 + 2 * BND +
+        BND * (BND + 1) ≤ B) :
+    ProgramBoundedIn B ρ
+      (Program.forN (.reg outerReg)
         (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-          valReg wBaseReg lengthReg cnfReg boundReg) m σ2)
-      (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-        valReg wBaseReg lengthReg cnfReg boundReg) := by
-  rcases hidx with ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
-  rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-  have hCurIter : (loopEval
-      (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-        valReg wBaseReg lengthReg cnfReg boundReg) m σ2) cursorReg ≤
-      σ2 cursorReg + m * (1 + σ2 boundReg + σ2 boundReg * (σ2 boundReg + 1)) :=
-    decodeCNFEvalClauseStepAt_cursor_le cursorReg polReg varReg doneReg remainingReg satReg
-      bitReg valReg wBaseReg lengthReg cnfReg boundReg m σ2
-      hcp hcv hcd hcl hld hrc hcbit hcval hcsat hbc hbp hbv hbd hbl hbr hbb hbval hbs hbk hck hrs
-  have hBndIterFinal : (loopEval
-      (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-        valReg wBaseReg lengthReg cnfReg boundReg) m σ2) boundReg = σ boundReg := by
-    rw [decodeCNFEvalClauseStepAt_loopEval_bound_frame cursorReg polReg varReg doneReg
-      remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg m σ2
-      hbc hbp hbv hbd hbl hbr hbs hbb hbval hbk, hb2']
-  have hWBaseIterFinal : (loopEval
-      (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-        valReg wBaseReg lengthReg cnfReg boundReg) m σ2) wBaseReg = σ wBaseReg := by
-    rw [decodeCNFEvalClauseStepAt_loopEval_wBase_frame cursorReg polReg varReg doneReg
-      remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg m σ2
-      hcw hpw hvw hdw hrw hbw hvalw hsw hlw hkw, hw2]
-  have hCurIterFinal : (loopEval
-      (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
-        valReg wBaseReg lengthReg cnfReg boundReg) m σ2) cursorReg ≤
-      σ cursorReg + σ boundReg +
-        σ boundReg * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) := by
-    rw [hb2'] at hCurIter
-    have hmb : m * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) ≤
-        σ boundReg * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) :=
-      Nat.mul_le_mul_right _ houterLe
-    omega
-  refine programBoundedIn_decodeCNFEvalClauseStepAt_of_value_bounds B cursorReg polReg varReg
-    doneReg remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg _
-    ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
-    ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-    hcl hld hrc hrv hbl hrp hrd hrbit hrval hcw hpw hvw hdw hrw hlw hcbit hcval hbb hbval hbw
-    hvalw
-    ⟨hcsat.symm, hsd, hrs.symm, hsl, hbs.symm, hsw⟩ ?_ ?_ ?_
-  · rw [hBndIterFinal]; omega
-  · rw [hWBaseIterFinal, hBndIterFinal]; exact hwbudget
-  · rw [hBndIterFinal]; omega
+          valReg wBaseReg lengthReg cnfReg boundReg)) := by
+  rcases hidx with ⟨hci, hpi, hvi, hdi, hoi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
+  rcases hdist with ⟨hcp, hcv, hcdN, hvd, hbc, hbp, hbv, hbdN, hbr⟩
+  set body := decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg
+    bitReg valReg wBaseReg lengthReg cnfReg boundReg
+  refine programBoundedIn_forN_of_invariant B BND ρ (Expr.reg outerReg) body
+    (fun j τ => τ boundReg = BND ∧ τ wBaseReg = WB ∧
+      τ cursorReg ≤ CUR + j * (1 + BND + BND * (BND + 1)))
+    ?_ hcount (fun j _ => ?_) (fun j _ τ hI => ?_)
+  · show ExprBoundedIn B ρ (Expr.reg outerReg)
+    exact hoi
+  · have hboundτ : (loopEval body j ρ) boundReg = BND :=
+      (decodeCNFEvalClauseStepAt_loopEval_bound_frame cursorReg polReg varReg doneReg
+        remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg j ρ
+        hbc hbp hbv hbdN hbl hbr hbs hbb hbval hbk).trans hbd
+    have hwτ : (loopEval body j ρ) wBaseReg = WB :=
+      (decodeCNFEvalClauseStepAt_loopEval_wBase_frame cursorReg polReg varReg doneReg
+        remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg j ρ
+        hcw hpw hvw hdw hrw hbw hvalw hsw hlw hkw).trans hwb
+    have hcurτ : (loopEval body j ρ) cursorReg ≤ CUR + j * (1 + BND + BND * (BND + 1)) := by
+      have hg : (loopEval body j ρ) cursorReg ≤
+          ρ cursorReg + j * (1 + ρ boundReg + ρ boundReg * (ρ boundReg + 1)) :=
+        decodeCNFEvalClauseStepAt_cursor_le cursorReg polReg varReg doneReg
+          remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg j ρ
+          hcp hcv hcdN hcl hld hrc hcbit hcval hcsat hbc hbp hbv hbdN hbl hbr hbb hbval hbs hbk
+          hck hrs
+      rw [hbd] at hg
+      omega
+    exact ⟨hboundτ, hwτ, hcurτ⟩
+  · obtain ⟨hbdτ, hwτ, hcurτ⟩ := hI
+    have hjB : j ≤ BND := by omega
+    have hmb : j * (1 + BND + BND * (BND + 1)) ≤ BND * (1 + BND + BND * (BND + 1)) :=
+      Nat.mul_le_mul_right _ hjB
+    refine programBoundedIn_decodeCNFEvalClauseStepAt_of_value_bounds B cursorReg polReg
+      varReg doneReg remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg τ
+      ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
+      ⟨hcp, hcv, hcdN, hvd, hbc, hbp, hbv, hbdN, hbr⟩
+      hcl hld hrc hrv hbl hrp hrd hrbit hrval hcw hpw hvw hdw hrw hlw hcbit hcval hbb hbval
+      hbw hvalw ⟨hcsat.symm, hsd, hrs.symm, hsl, hbs.symm, hsw⟩ ?_ ?_ ?_
+    · rw [hbdτ]; omega
+    · rw [hwτ, hbdτ]; exact hwbudget
+    · rw [hbdτ]; omega
 
 
 /-! ## Resource-carrying composition of the prefix and the outer loop
@@ -390,89 +400,64 @@ the clause-step bounds read off the loop invariant. -/
       (fun _ => True) := by
   rcases hidx with ⟨hci, hpi, hvi, hdi, hoi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
   rcases hdist with ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-  have s1 : StageSpec B (decodeCNFEvalResBounds B cursorReg wBaseReg boundReg σ)
+  have hC1 : ReadsOnly (fun a => a ≠ doneReg)
+      (fun ρ => ρ wBaseReg = σ wBaseReg ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg) := by
+    intro τ τ' he hτ
+    exact ⟨(he wBaseReg hdw.symm).trans hτ.1, (he boundReg hbd).trans hτ.2.1,
+      (he cursorReg hcd).trans hτ.2.2⟩
+  have s1 : StageSpec B
+      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧
+        (ρ wBaseReg = σ wBaseReg ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg))
       (Program.assign doneReg (.const 0)) {doneReg}
-      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧ ρ wBaseReg = σ wBaseReg
-        ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg ∧ ρ doneReg = 0) := by
-    refine StageSpec.assign hdi (fun ρ _ => by simp [ExprBoundedIn]) (fun ρ hρ => ?_)
-    obtain ⟨hvals, hwb, hbd', hcur⟩ := hρ
-    refine ⟨valuesLeOn_writeReg hvals (by simp [Expr.eval]), ?_, ?_, ?_, ?_⟩
-    · rw [writeReg_diff _ _ _ _ hdw.symm]; exact hwb
-    · rw [writeReg_diff _ _ _ _ hbd]; exact hbd'
-    · rw [writeReg_diff _ _ _ _ hcd]; exact hcur
-    · exact writeReg_same ρ doneReg 0
+      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧
+        (ρ wBaseReg = σ wBaseReg ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg) ∧
+        ρ doneReg = 0) :=
+    StageSpec.assign_const_carry (S := {wBaseReg, boundReg, cursorReg}) hdi (by omega) hC1
+  have hC2 : ReadsOnly (fun a => a ≠ outerReg)
+      (fun ρ => (ρ wBaseReg = σ wBaseReg ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg)
+        ∧ ρ doneReg = 0) := by
+    intro τ τ' he hτ
+    exact ⟨⟨(he wBaseReg how.symm).trans hτ.1.1, (he boundReg hoBnd.symm).trans hτ.1.2.1,
+      (he cursorReg hco).trans hτ.1.2.2⟩, (he doneReg hdo).trans hτ.2⟩
   have s2 : StageSpec B
-      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧ ρ wBaseReg = σ wBaseReg
-        ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg ∧ ρ doneReg = 0)
+      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧
+        (ρ wBaseReg = σ wBaseReg ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg) ∧
+        ρ doneReg = 0)
       (Program.assign outerReg (.const 0)) {outerReg}
-      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧ ρ wBaseReg = σ wBaseReg
-        ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg ∧ ρ doneReg = 0
-        ∧ ρ outerReg = 0) := by
-    refine StageSpec.assign hoi (fun ρ _ => by simp [ExprBoundedIn]) (fun ρ hρ => ?_)
-    obtain ⟨hvals, hwb, hbd', hcur, hdone⟩ := hρ
-    refine ⟨valuesLeOn_writeReg hvals (by simp [Expr.eval]), ?_, ?_, ?_, ?_, ?_⟩
-    · rw [writeReg_diff _ _ _ _ how.symm]; exact hwb
-    · rw [writeReg_diff _ _ _ _ hoBnd.symm]; exact hbd'
-    · rw [writeReg_diff _ _ _ _ hco]; exact hcur
-    · rw [writeReg_diff _ _ _ _ hdo]; exact hdone
-    · exact writeReg_same ρ outerReg 0
+      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧ ρ wBaseReg = σ wBaseReg ∧
+        ρ cursorReg ≤ σ cursorReg ∧ ρ boundReg = σ boundReg ∧ ρ outerReg = 0) :=
+    (StageSpec.assign_const_carry (S := {wBaseReg, boundReg, cursorReg}) hoi (by omega)
+      hC2).weaken (fun _ => id) (fun r => id) (fun ρ hρ => by
+      obtain ⟨hvals, hpins, hout⟩ := hρ
+      obtain ⟨⟨hw, hb, hc⟩, hdone⟩ := hpins
+      exact ⟨hvals, hw, by omega, hb, hout⟩)
+  have hC3 : ReadsOnly (fun a => a ≠ cursorReg ∧ a ≠ outerReg ∧ a ≠ doneReg)
+      (fun ρ => ρ wBaseReg = σ wBaseReg) := by
+    intro τ τ' he hτ
+    exact (he wBaseReg ⟨hcw.symm, how.symm, hdw.symm⟩).trans hτ
+  have hdS : doneReg ∉ ({wBaseReg, boundReg, cursorReg} : Set ℕ) := by
+    intro h
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at h
+    rcases h with h | h | h
+    · exact hdw h
+    · exact hbd.symm h
+    · exact hcd.symm h
   have s3 : StageSpec B
-      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧ ρ wBaseReg = σ wBaseReg
-        ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg = σ cursorReg ∧ ρ doneReg = 0
-        ∧ ρ outerReg = 0)
+      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧ ρ wBaseReg = σ wBaseReg ∧
+        ρ cursorReg ≤ σ cursorReg ∧ ρ boundReg = σ boundReg ∧ ρ outerReg = 0)
       (decodeNatProgramAt cursorReg outerReg doneReg boundReg)
       (fun r => r = cursorReg ∨ r = outerReg ∨ r = doneReg)
-      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧ ρ wBaseReg = σ wBaseReg
-        ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg ≤ σ cursorReg + σ boundReg
-        ∧ ρ outerReg ≤ σ boundReg) := by
-    refine StageSpec.of_avoids ?_ (fun ρ hρ => ?_) (fun ρ hρ => ?_)
-    · refine Program.Avoids.mono (P := fun r => r ≠ cursorReg ∧ r ≠ outerReg ∧ r ≠ doneReg) ?_
-        (fun r hr => ⟨fun h => hr (Or.inl h), fun h => hr (Or.inr (Or.inl h)),
-          fun h => hr (Or.inr (Or.inr h))⟩)
-      simp [Program.Avoids, decodeNatProgramAt, decodeUnaryProgAt, decodeUnaryStep]
-    · obtain ⟨hvals, hwb, hbd', hcur, hdone, hout⟩ := hρ
-      set τ3 := (decodeNatProgramAt cursorReg outerReg doneReg boundReg).eval ρ with hτ3def
-      have hcount : τ3 outerReg ≤ σ boundReg := by
-        have h := decodeNatProgramAt_count_le cursorReg outerReg doneReg boundReg ρ hco hdo.symm
-        rw [hτ3def]
-        omega
-      have hcurG : τ3 cursorReg ≤ ρ cursorReg + ρ boundReg := by
-        unfold decodeNatProgramAt decodeUnaryProgAt at hτ3def
-        rw [hτ3def, eval_forN]
-        simp only [Expr.eval]
-        exact loopEval_decodeUnaryStep_cursor_le cursorReg outerReg doneReg hco hcd
-          (ρ boundReg) ρ
-      have hw3 : τ3 wBaseReg = σ wBaseReg :=
-        (decodeNatProgramAt_frame cursorReg outerReg doneReg boundReg wBaseReg ρ
-          hcw.symm how.symm hdw.symm).trans hwb
-      have hbd3 : τ3 boundReg = σ boundReg :=
-        (decodeNatProgramAt_bound_frame cursorReg outerReg doneReg boundReg ρ
-          hbc hoBnd.symm hbd).trans hbd'
-      have hwB : τ3 wBaseReg ≤ B := by rw [hw3]; have := hvals wBaseReg (by simp); omega
-      have hbdB : τ3 boundReg ≤ B := by rw [hbd3]; have := hvals boundReg (by simp); omega
-      have hcurB : τ3 cursorReg ≤ B := by
-        have := hvals cursorReg (by simp)
-        have := hvals wBaseReg (by simp)
-        have := hvals boundReg (by simp)
-        omega
-      have hvals3 : ValuesLeOn B {wBaseReg, boundReg, cursorReg} τ3 := by
-        intro a ha
-        rcases Set.mem_insert_iff.mp ha with h | h
-        · subst h; exact hwB
-        · rcases Set.mem_insert_iff.mp h with h | h
-          · subst h; exact hbdB
-          · rw [Set.mem_singleton_iff] at h
-            subst h
-            exact hcurB
-      exact ⟨hvals3, hw3, hbd3, by have := hcurG; omega, hcount⟩
-    · obtain ⟨hvals, hwb, hbd', hcur, hdone, hout⟩ := hρ
-      exact programBoundedIn_decodeNatProgramAt_of_bounds cursorReg outerReg doneReg boundReg B ρ
-        hco hcd hdo.symm ⟨hci, hoi, hdi, hbi⟩ (by rw [hcur, hbd']; omega)
-        (by rw [hout, hbd']; omega)
+      (fun τ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} τ ∧ τ wBaseReg = σ wBaseReg ∧
+        τ boundReg = σ boundReg ∧ τ cursorReg ≤ σ cursorReg + σ boundReg ∧
+        τ outerReg ≤ 0 + σ boundReg) :=
+    StageSpec.decodeUnaryAt (cg := σ cursorReg) (k0 := 0) (lrv := σ boundReg)
+      (c := cursorReg) (k := outerReg) (d := doneReg) (lr := boundReg)
+      (S := {wBaseReg, boundReg, cursorReg}) hco hcd hdo.symm
+      ⟨hbc, hoBnd.symm, hbd⟩ ⟨hci, hoi, hdi, hbi⟩ hC3 hdS (by omega) (by omega)
   have s4 : StageSpec B
-      (fun ρ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} ρ ∧ ρ wBaseReg = σ wBaseReg
-        ∧ ρ boundReg = σ boundReg ∧ ρ cursorReg ≤ σ cursorReg + σ boundReg
-        ∧ ρ outerReg ≤ σ boundReg)
+      (fun τ => ValuesLeOn B {wBaseReg, boundReg, cursorReg} τ ∧ τ wBaseReg = σ wBaseReg ∧
+        τ boundReg = σ boundReg ∧ τ cursorReg ≤ σ cursorReg + σ boundReg ∧
+        τ outerReg ≤ 0 + σ boundReg)
       (Program.forN (.reg outerReg)
         (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg satReg bitReg
           valReg wBaseReg lengthReg cnfReg boundReg))
@@ -493,42 +478,15 @@ the clause-step bounds read off the loop invariant. -/
           fun h => hr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h)))))))))⟩)
       exact decodeCNFEvalClauseStepAt_avoids_frame cursorReg polReg varReg doneReg remainingReg
         satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg
-    · obtain ⟨hvals, hwb, hbd', hcur, hout⟩ := hρ
-      simp only [ProgramBoundedIn, ExprBoundedIn, Expr.eval]
-      refine ⟨hoi, fun m hm => ?_⟩
-      set τm := loopEval (decodeCNFEvalClauseStepAt cursorReg polReg varReg doneReg remainingReg
-        satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg) m ρ with hτmdef
-      have hboundτ : τm boundReg = σ boundReg :=
-        (decodeCNFEvalClauseStepAt_loopEval_bound_frame cursorReg polReg varReg doneReg
-          remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg m ρ
-          hbc hbp hbv hbd hbl hbr hbs hbb hbval hbk).trans hbd'
-      have hwτ : τm wBaseReg = σ wBaseReg :=
-        (decodeCNFEvalClauseStepAt_loopEval_wBase_frame cursorReg polReg varReg doneReg
-          remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg m ρ
-          hcw hpw hvw hdw hrw hbw hvalw hsw hlw hkw).trans hwb
-      have hmB : m ≤ σ boundReg := by omega
-      have hcurτ : τm cursorReg ≤ σ cursorReg + σ boundReg +
-          σ boundReg * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) := by
-        have hg : τm cursorReg ≤ ρ cursorReg + m * (1 + ρ boundReg + ρ boundReg * (ρ boundReg + 1)) := by
-          rw [hτmdef]
-          exact decodeCNFEvalClauseStepAt_cursor_le cursorReg polReg varReg doneReg
-            remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg m ρ
-            hcp hcv hcd hcl hld hrc hcbit hcval hcsat hbc hbp hbv hbd hbl hbr hbb hbval hbs hbk
-            hck hrs
-        rw [hbd'] at hg
-        have hmb : m * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) ≤
-            σ boundReg * (1 + σ boundReg + σ boundReg * (σ boundReg + 1)) :=
-          Nat.mul_le_mul_right _ hmB
-        omega
-      refine programBoundedIn_decodeCNFEvalClauseStepAt_of_value_bounds B cursorReg polReg
-        varReg doneReg remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg _
-        ⟨hci, hpi, hvi, hdi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
+    · obtain ⟨hvals, hwρ, hbdρ, hcurρ, houtρ⟩ := hρ
+      exact programBoundedIn_decodeCNFEvalClauseLoop_of_value_bounds B cursorReg polReg varReg
+        doneReg outerReg remainingReg satReg bitReg valReg wBaseReg lengthReg cnfReg boundReg
+        (σ cursorReg + σ boundReg) (σ wBaseReg) (σ boundReg) ρ
+        ⟨hci, hpi, hvi, hdi, hoi, hri, hsi, hbiti, hvali, hwi, hli, hki, hbi⟩
         ⟨hcp, hcv, hcd, hvd, hbc, hbp, hbv, hbd, hbr⟩
-        hcl hld hrc hrv hbl hrp hrd hrbit hrval hcw hpw hvw hdw hrw hlw hcbit hcval hbb hbval
-        hbw hvalw ⟨hcsat.symm, hsd, hrs.symm, hsl, hbs.symm, hsw⟩ ?_ ?_ ?_
-      · rw [hboundτ]; omega
-      · rw [hwτ, hboundτ]; exact hwbudget
-      · rw [hboundτ]; omega
+        hcl hld hrc hcbit hcval hcsat hbl hbb hbval hbs hbk hck hrs hsd hsl
+        hcw hpw hvw hdw hrw hbw hvalw hsw hlw hkw hrv hrp hrd hrbit hrval
+        (by omega) hcurρ hwρ hbdρ hwbudget houterCoarse
   exact StageSpec.seq s1 (StageSpec.seq s2 (StageSpec.seq s3 s4))
 
 /-- `programBoundedIn_decodeCNFEvalProgramAt_of_store_bounds` without `StoreValuesLe`: at
@@ -666,43 +624,33 @@ budgets and the loop count carried by the outer role. -/
   have hreg : ∀ role : CNFEvalRole, R.reg role ≤ B := by
     intro role
     exact Nat.le_of_lt (R.reg_lt_of_top_le role hRB)
-  refine ⟨?_, fun m hm => ?_⟩
-  · show ExprBoundedIn B σ (.reg (R.reg .outer))
-    simp only [ExprBoundedIn]
-    exact hreg .outer
-  · have hm' : m < cs.length := by
-      change m < σ (R.reg .outer) at hm
-      rw [hcount] at hm
-      exact hm
-    have hmB : m ≤ σ (R.reg .bound) := by
-      rw [hbd]
-      omega
-    exact programBoundedIn_decodeCNFEvalClauseStepAt_at_loop_of_value_bounds B
-      (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done) (R.reg .remaining) (R.reg .sat)
-      (R.reg .bit) (R.reg .val) (R.reg .wBase) (R.reg .length) (R.reg .cnf) (R.reg .bound) m σ σ
-      (hidx := ⟨hreg .cursor, hreg .pol, hreg .var, hreg .done, hreg .remaining, hreg .sat,
-        hreg .bit, hreg .val, hreg .wBase, hreg .length, hreg .cnf, hreg .bound⟩)
-      (hdist := ⟨R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
-        R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
-        R.reg_ne (by decide), R.reg_ne (by decide)⟩)
-      (hcl := R.reg_ne (by decide)) (hld := R.reg_ne (by decide))
-      (hrc := R.reg_ne (by decide)) (hcbit := R.reg_ne (by decide))
-      (hcval := R.reg_ne (by decide)) (hcsat := R.reg_ne (by decide))
-      (hbl := R.reg_ne (by decide)) (hbb := R.reg_ne (by decide))
-      (hbval := R.reg_ne (by decide)) (hbs := R.reg_ne (by decide))
-      (hbk := R.reg_ne (by decide)) (hck := R.reg_ne (by decide))
-      (hrs := R.reg_ne (by decide)) (hsd := R.reg_ne (by decide))
-      (hsl := R.reg_ne (by decide)) (hcw := R.reg_ne (by decide))
-      (hpw := R.reg_ne (by decide)) (hvw := R.reg_ne (by decide))
-      (hdw := R.reg_ne (by decide)) (hrw := R.reg_ne (by decide))
-      (hbw := R.reg_ne (by decide)) (hvalw := R.reg_ne (by decide))
-      (hsw := R.reg_ne (by decide)) (hlw := R.reg_ne (by decide))
-      (hkw := R.reg_ne (by decide)) (hrv := R.reg_ne (by decide))
-      (hrp := R.reg_ne (by decide)) (hrd := R.reg_ne (by decide))
-      (hrbit := R.reg_ne (by decide)) (hrval := R.reg_ne (by decide))
-      (hwbudget := by rw [hwb, hbd]; exact hwbudget)
-      (houterCoarse := by rw [hcur, hbd]; exact houterCoarse)
-      (hb2' := rfl) (hw2 := rfl) (hσ2cur := Nat.le_add_right _ _) (houterLe := hmB)
+  exact programBoundedIn_decodeCNFEvalClauseLoop_of_value_bounds B
+    (R.reg .cursor) (R.reg .pol) (R.reg .var) (R.reg .done) (R.reg .outer) (R.reg .remaining)
+    (R.reg .sat) (R.reg .bit) (R.reg .val) (R.reg .wBase) (R.reg .length) (R.reg .cnf)
+    (R.reg .bound) (addr + bound) wBase bound σ
+    (hidx := ⟨hreg .cursor, hreg .pol, hreg .var, hreg .done, hreg .outer, hreg .remaining,
+      hreg .sat, hreg .bit, hreg .val, hreg .wBase, hreg .length, hreg .cnf, hreg .bound⟩)
+    (hdist := ⟨R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide), R.reg_ne (by decide),
+      R.reg_ne (by decide), R.reg_ne (by decide)⟩)
+    (hcl := R.reg_ne (by decide)) (hld := R.reg_ne (by decide))
+    (hrc := R.reg_ne (by decide)) (hcbit := R.reg_ne (by decide))
+    (hcval := R.reg_ne (by decide)) (hcsat := R.reg_ne (by decide))
+    (hbl := R.reg_ne (by decide)) (hbb := R.reg_ne (by decide))
+    (hbval := R.reg_ne (by decide)) (hbs := R.reg_ne (by decide))
+    (hbk := R.reg_ne (by decide)) (hck := R.reg_ne (by decide))
+    (hrs := R.reg_ne (by decide)) (hsd := R.reg_ne (by decide))
+    (hsl := R.reg_ne (by decide)) (hcw := R.reg_ne (by decide))
+    (hpw := R.reg_ne (by decide)) (hvw := R.reg_ne (by decide))
+    (hdw := R.reg_ne (by decide)) (hrw := R.reg_ne (by decide))
+    (hbw := R.reg_ne (by decide)) (hvalw := R.reg_ne (by decide))
+    (hsw := R.reg_ne (by decide)) (hlw := R.reg_ne (by decide))
+    (hkw := R.reg_ne (by decide)) (hrv := R.reg_ne (by decide))
+    (hrp := R.reg_ne (by decide)) (hrd := R.reg_ne (by decide))
+    (hrbit := R.reg_ne (by decide)) (hrval := R.reg_ne (by decide))
+    (hcount := by rw [hcount]; omega) (hcur := by rw [hcur]; exact Nat.le_add_right _ _)
+    (hwb := hwb) (hbd := hbd)
+    (hwbudget := hwbudget) (houterCoarse := houterCoarse)
 
 /-- The whole evaluator as a bundled stage whose resource component follows from the entry
 budgets. -/
